@@ -1,0 +1,80 @@
+/* assets/css/admin-rtl.css */
+
+/* General RTL styles */
+#nbs3 .wrap {
+	direction: rtl;
+	text-align: right;
+}
+
+/* Form table styles for RTL */
+#nbs3 .form-table th {
+	padding: 20px 10px;
+}
+
+#nbs3 .form-table td {
+	padding: 20px 10px;
+}
+
+/* Checkbox style for RTL */
+#nbs3 input[type="checkbox"] {
+	margin-left: 10px;
+	margin-right: 0;
+}
+
+/* Radio options for RTL */
+.nbs3-radio-option .description {
+	margin-right: 24px;
+	margin-left: 0;
+}
+
+.nbs3-checkbox-option {
+	padding-right: 24px;
+	padding-left: 0;
+	position: relative;
+}
+
+.nbs3-checkbox-option input[type="checkbox"] {
+	position: absolute;
+	right: 0;
+	left: auto;
+	top: 5px;
+}
+
+.nbs3-field input[type="text"] {
+	direction: ltr;
+	text-align: left;
+}
+
+/* Header and navigation styles for RTL */
+.nbs3-topbar .nbs3-header h1 {
+	gap: 0.6rem;
+}
+
+.nbs3-topbar .nbs3-header a {
+	margin-right: auto;
+	margin-left: 0;
+}
+
+.nbs3-topbar .nbs3-header a svg {
+	margin-left: 6px;
+	margin-right: 0;
+}
+
+.nbs3-topbar .nbs3-menu nav a {
+	margin-left: 30px;
+	margin-right: 0;
+}
+
+.nbs3-last-check.connected {
+	background: #edfaef;
+	color: #287d3c;
+	border-right: 4px solid #28a745;
+	border-left: none;
+}
+
+.nbs3-last-check.disconnected {
+	background: #fff5f5;
+	color: #da1414;
+	border-right: 4px solid #dc3545;
+	border-left: none;
+}

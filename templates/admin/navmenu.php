@@ -1,0 +1,39 @@
+<?php
+
+declare(strict_types=1);
+
+function nbs3_get_admin_page_url(string $page): string
+{
+    return get_admin_url(null, "admin.php?page={$page}");
+}
+
+$menu_items = [
+    'general' => [
+        'title' => __('General Settings', 'nobloat-s3-offload'),
+        'url' => nbs3_get_admin_page_url('nbs3'),
+    ],
+    'media-overview' => [
+        'title' => __('Media Overview', 'nobloat-s3-offload'),
+        'url' => nbs3_get_admin_page_url('nbs3_media_overview'),
+    ],
+];
+
+function nbs3_generate_menu_item(array $item, string $page): string
+{
+    $class = nbs3_is_settings_page($page) ? 'active' : '';
+    return sprintf(
+        '<a href="%s" class="%s">%s</a>',
+        esc_url($item['url']),
+        esc_attr($class),
+        esc_html($item['title'])
+    );
+}
+?>
+
+<div class="nbs3-menu">
+    <nav>
+        <?php foreach ($menu_items as $slug => $item) : ?>
+            <?php echo nbs3_generate_menu_item($item, $slug); ?>
+        <?php endforeach; ?>
+    </nav>
+</div>

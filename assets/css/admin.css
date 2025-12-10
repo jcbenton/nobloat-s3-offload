@@ -1,0 +1,841 @@
+/* General styles */
+#nbs3 .wrap {
+	max-width: 1280px;
+	margin: 0 auto;
+	padding: 0 30px;
+}
+
+/* Form styles */
+#nbs3 form {
+	margin-top: 20px;
+}
+
+@media screen and (max-width: 782px) {
+	/* It's 100% by default but it causes the form to be too wide on mobile devices */
+	.form-table {
+		width: auto;
+	}
+}
+
+#nbs3 .form-table th {
+	font-weight: 600;
+	padding: 20px 10px 20px 0;
+	width: 200px;
+	vertical-align: top;
+}
+
+#nbs3 .form-table td {
+	padding: 20px 10px;
+	vertical-align: top;
+}
+
+/* Field styles */
+#nbs3 select,
+#nbs3 input[type="text"],
+#nbs3 input[type="password"] {
+	width: 100%;
+	max-width: 400px;
+	padding: 8px;
+	border: 1px solid #ddd;
+	border-radius: 4px;
+}
+
+/* Checkbox style */
+#nbs3 input[type="checkbox"] {
+	margin-right: 10px;
+}
+
+/* Description style */
+#nbs3 .description {
+	font-style: italic;
+	color: #666;
+	margin-top: 5px;
+}
+
+/* Responsive design */
+@media screen and (max-width: 782px) {
+	#nbs3 .form-table th,
+	#nbs3 .form-table td {
+		display: block;
+		width: 100%;
+		padding: 10px 0;
+	}
+
+	#nbs3 .form-table th {
+		padding-bottom: 0;
+	}
+}
+
+/* Custom styles for credential fields */
+#nbs3 .nbs3-credentials-field {
+	margin-bottom: 15px;
+}
+
+#nbs3 .nbs3-credentials-field label {
+	display: block;
+	margin-bottom: 5px;
+	font-weight: 600;
+}
+
+.nbs3-test-connection-container {
+	margin-top: 10px;
+}
+
+/* Bulk Offload */
+
+.nbs3-field.nbs3-bulk-offload-media th {
+	display: none;
+}
+
+#bulk-offload-button {
+	margin: 0.6rem 0;
+}
+
+#bulk-offload-cancel-button {
+	margin: 1rem 0;
+	display: inline-block;
+}
+/* Progress Bar */
+.progress-bar-container {
+	width: 100%;
+	background-color: #e0e0e0;
+	padding: 3px;
+	border-radius: 3px;
+	margin-top: 20px;
+}
+
+#offload-progress {
+	width: 0;
+	height: 20px;
+	background-color: #0073aa;
+	border-radius: 2px;
+	transition: width 0.5s;
+}
+
+#progress-title {
+	font-size: 16px;
+	font-weight: bold;
+	margin-bottom: 10px;
+}
+
+#progress-text {
+	margin-top: 10px;
+	font-weight: bold;
+}
+
+/* Form table styles */
+#nbs3 .nbs3-section {
+	background-color: #f9f9f9;
+	border: 1px solid #e0e0e0;
+	box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.1); /* Light shadow */
+	margin-top: 2rem;
+}
+
+#nbs3 .nbs3-section-header {
+	padding: 1rem;
+	border-bottom: 1px solid #e5e5e5;
+	font-size: 1rem;
+	color: #666666;
+	font-weight: normal;
+	background: #fff;
+}
+
+#nbs3 .nbs3-section-header h2 {
+	font-size: 1.2rem;
+	font-weight: bold;
+	color: #333333;
+}
+
+#nbs3 .form-table {
+	margin: 0;
+}
+
+#nbs3 .form-table th {
+	background-color: #f9f9f9;
+	border-bottom: 1px solid #e5e5e5;
+	font-size: 0.9125rem;
+}
+
+#nbs3 .form-table td {
+	border-bottom: 1px solid #f0f0f0;
+}
+
+#nbs3 .form-table tr:last-child th,
+#nbs3 .form-table tr:last-child td {
+	border-bottom: none;
+}
+
+#nbs3 .form-table tbody tr th {
+	vertical-align: top;
+	padding-left: 1rem;
+}
+
+/* Submit button styling */
+#nbs3 .submit {
+	margin-top: 30px;
+	text-align: center;
+}
+
+#nbs3 .button-primary {
+	background-color: #0073aa; /* WordPress blue */
+	color: #ffffff;
+	font-weight: bold;
+	padding: 10px 20px;
+	border-radius: 4px;
+	border: none;
+	cursor: pointer;
+	transition: background-color 0.2s ease-in-out;
+}
+
+#nbs3 .button-primary:hover,
+#nbs3 .button-primary:focus {
+	background-color: #005177;
+}
+
+/* Responsive adjustments */
+@media screen and (max-width: 782px) {
+	#nbs3 .form-table th,
+	#nbs3 .form-table td {
+		padding: 15px;
+	}
+}
+
+.nbs3-radio-group {
+	margin-bottom: 20px;
+}
+
+.nbs3-radio-option {
+	margin-bottom: 20px;
+}
+
+.nbs3-radio-option input[type="radio"] {
+	margin-right: 10px;
+}
+
+.nbs3-radio-option label {
+	font-weight: bold;
+	display: inline-block;
+	margin-bottom: 5px;
+	cursor: pointer;
+}
+
+.nbs3-radio-option .description {
+	margin-left: 24px;
+	color: #666;
+	font-size: 13px;
+	line-height: 1.5;
+}
+
+.nbs3-radio-option input[type="radio"]:checked + label {
+	color: #0073aa;
+}
+
+@media screen and (max-width: 782px) {
+	.nbs3-radio-option {
+		margin-bottom: 25px;
+	}
+}
+
+/* Checkboxes */
+.nbs3-checkbox-option {
+	margin-bottom: 20px;
+	padding-left: 24px;
+	position: relative;
+}
+
+.nbs3-checkbox-option input[type="checkbox"] {
+	position: absolute;
+	left: 0;
+	top: 5px;
+}
+
+.nbs3-checkbox-option label {
+	font-weight: bold;
+	cursor: pointer;
+	display: inline-block;
+	margin-bottom: 5px;
+}
+
+.nbs3-checkbox-option .description {
+	margin-top: 5px;
+	color: #666;
+	font-size: 13px;
+	line-height: 1.5;
+}
+
+.nbs3-checkbox-option input[type="checkbox"]:checked + label {
+	color: #0073aa;
+}
+
+/* Input below Checkbox */
+
+.nbs3-checkbox-option input[type="input"]#path_prefix {
+	width: 100%;
+	max-width: 300px;
+	padding: 8px;
+	margin-top: 5px;
+	border: 1px solid #ddd;
+	border-radius: 4px;
+	font-size: 14px;
+	color: #333;
+	transition: all 0.3s ease;
+}
+
+.nbs3-checkbox-option input[type="input"]#path_prefix:focus {
+	border-color: #007cba;
+	box-shadow: 0 0 0 1px #007cba;
+	outline: 2px solid transparent;
+}
+
+.nbs3-checkbox-option input[type="input"]#path_prefix:disabled {
+	background-color: #f0f0f0;
+	color: #888;
+	cursor: not-allowed;
+}
+
+@media screen and (max-width: 782px) {
+	.nbs3-checkbox-option {
+		padding-left: 32px;
+	}
+
+	.nbs3-checkbox-option input[type="checkbox"] {
+		width: 25px;
+		height: 25px;
+	}
+
+	.nbs3-checkbox-option label {
+		line-height: 25px;
+	}
+}
+
+#wpcontent {
+	background: #f0f0f1;
+	padding: 0;
+}
+
+@media (max-width: 600px) {
+	.nbs3-topbar {
+		position: relative;
+		top: 46px;
+	}
+}
+
+.nbs3-topbar .nbs3-header {
+	display: flex;
+	flex-direction: row;
+	background: #fff;
+	padding: 23px 30px;
+}
+.nbs3-topbar .nbs3-header h1 {
+	font-size: 1.1rem;
+	display: flex;
+	align-items: center;
+	gap: 0.6rem;
+	color: #424242;
+}
+
+.nbs3-topbar .nbs3-header a {
+	display: flex;
+	align-items: center;
+	font-size: clamp(14px, 1.5vw, 16px);
+	font-weight: 500;
+	margin-left: auto;
+	text-decoration: none;
+	color: #6f6f84;
+	outline: none !important;
+	box-shadow: none !important;
+}
+
+.nbs3-topbar .nbs3-header a:active,
+.nbs3-topbar .nbs3-header a :hover {
+	color: #3a3a56;
+}
+
+.nbs3-topbar .nbs3-header a svg {
+	margin-right: 6px;
+}
+
+.nbs3-topbar .nbs3-menu {
+	padding: 0 30px;
+}
+
+.nbs3-topbar .nbs3-menu nav {
+	display: flex;
+	flex-wrap: wrap;
+	border-bottom: 1px solid #dadadf;
+}
+
+.nbs3-topbar .nbs3-menu nav a {
+	padding: 20.5px 0 17.5px;
+	text-decoration: none;
+	font-size: 15px;
+	line-height: 18px;
+	color: #3a3a56;
+	margin-right: 30px;
+	outline: none;
+	box-shadow: none;
+	border-bottom: 3px solid rgba(0, 0, 0, 0);
+	margin-bottom: -1px;
+	transition: all 0.2s ease;
+}
+
+.nbs3-topbar .nbs3-menu nav a:hover {
+	border-bottom: 3px solid #1a325e;
+}
+
+.nbs3-topbar .nbs3-menu nav a.active,
+.nbs3-topbar.nbs3-menu nav a:focus {
+	color: #09092c;
+	font-weight: 500;
+	border-color: #1a325e;
+}
+
+/* Credential fields styles */
+.nbs3-credentials-container {
+	margin-top: 15px;
+}
+
+.nbs3-credentials-info {
+	padding: 12px;
+	margin-bottom: 20px;
+	border-left: 4px solid #72aee6;
+}
+
+.nbs3-credentials-info p {
+	margin: 0;
+}
+
+.nbs3-credential-fields {
+	display: flex;
+	flex-direction: column;
+	gap: 20px;
+	margin-bottom: 20px;
+}
+
+.nbs3-credential-field {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.nbs3-credential-field label {
+	font-weight: 600;
+	color: #1d2327;
+	display: block;
+}
+
+.nbs3-credential-field input[type="text"],
+.nbs3-credential-field input[type="password"] {
+	padding: 8px 12px;
+	border: 1px solid #8c8f94;
+	border-radius: 4px;
+	font-size: 14px;
+	line-height: 1.5;
+	background-color: #fff;
+	transition: border-color 0.2s ease;
+}
+
+.nbs3-credential-field input[type="text"]:focus,
+.nbs3-credential-field input[type="password"]:focus {
+	border-color: #2271b1;
+	outline: none;
+	box-shadow: 0 0 0 1px #2271b1;
+}
+
+.nbs3-credential-field .description {
+	margin: 0;
+	font-size: 13px;
+	color: #646970;
+}
+
+/* Password field wrapper with toggle button */
+.nbs3-password-field-wrapper {
+	position: relative;
+	display: flex;
+	align-items: center;
+	max-width: 400px;
+}
+
+.nbs3-password-field-wrapper .nbs3-password-input {
+	flex: 1;
+	padding-right: 36px !important;
+}
+
+.nbs3-toggle-password {
+	position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    padding: 0 !important;
+    background: transparent !important;
+    border: none;
+    cursor: pointer !important;
+    color: #50575e !important;
+    transition: all 0.2s ease;
+    height: 28px;
+    width: 28px;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px !important;
+}
+
+.nbs3-toggle-password:hover {
+	color: #2271b1 !important;
+}
+
+.nbs3-toggle-password:focus {
+	outline: 1px solid #2271b1 !important;
+	outline-offset: 1px;
+	border-radius: 2px !important;
+}
+
+.nbs3-toggle-password .dashicons {
+	width: 16px;
+	height: 16px;
+	font-size: 16px;
+}
+
+/* Disabled field styles */
+.nbs3-credential-field.nbs3-field-disabled input {
+	background-color: #f6f7f7;
+	color: #646970;
+	cursor: not-allowed;
+	opacity: 0.7;
+}
+
+.nbs3-credential-field.nbs3-field-disabled label {
+	color: #646970;
+}
+
+.nbs3-credential-field.nbs3-field-disabled .description {
+	color: #646970;
+	font-style: italic;
+}
+
+/* Fade out animation for status messages */
+.nbs3-last-check.fade-out {
+	opacity: 0;
+	transition: opacity 0.3s ease;
+}
+
+/* Connection status badge */
+.nbs3-connection-status {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	padding: 12px 16px;
+	border-radius: 6px;
+	margin: 20px 0 15px 0;
+	font-size: 14px;
+	font-weight: 500;
+	border-left: 4px solid;
+	transition: all 0.3s ease;
+	animation: slideIn 0.4s ease-out;
+}
+
+@keyframes slideIn {
+	from {
+		opacity: 0;
+		transform: translateY(-10px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+.nbs3-connection-status.connected {
+	background-color: #d4edda;
+	border-color: #28a745;
+	color: #155724;
+}
+
+.nbs3-connection-status.disconnected {
+	background-color: #fff3cd;
+	border-color: #ffc107;
+	color: #856404;
+}
+
+.nbs3-connection-status .dashicons {
+	width: 20px;
+	height: 20px;
+	font-size: 20px;
+}
+
+.nbs3-connection-status.connected .dashicons {
+	color: #28a745;
+}
+
+.nbs3-connection-status.disconnected .dashicons {
+	color: #ffc107;
+}
+
+.nbs3-status-text {
+	font-weight: 600;
+}
+
+.nbs3-status-time {
+	color: inherit;
+	opacity: 0.8;
+	font-size: 13px;
+	margin-left: 8px;
+}
+
+/* Credentials action buttons */
+.nbs3-credentials-actions {
+	display: flex;
+	gap: 12px;
+	align-items: center;
+	margin-top: 5px;
+	flex-wrap: wrap;
+}
+
+.nbs3-save-credentials {
+	font-size: 14px !important;
+    padding: 8px 18px !important;
+    height: auto;
+    line-height: 1.5 !important;
+    display: inline-flex !important;
+    align-items: center;
+    gap: 6px;
+    font-weight: 500 !important;
+}
+
+.nbs3-save-credentials .dashicons {
+	width: 18px;
+	height: 18px;
+	font-size: 18px;
+	line-height: 1;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	margin-top: -1px;
+}
+
+.nbs3_js_test_connection {
+	font-size: 14px;
+	padding: 8px 16px;
+	height: auto;
+	line-height: 1.5;
+	transition: all 0.2s ease;
+}
+
+.nbs3_js_test_connection:disabled {
+	opacity: 0.6;
+	cursor: not-allowed;
+}
+
+.nbs3_js_test_connection.loading {
+	position: relative;
+	color: transparent;
+	pointer-events: none;
+}
+
+.nbs3_js_test_connection.loading::after {
+	content: "";
+	position: absolute;
+	width: 16px;
+	height: 16px;
+	top: 50%;
+	left: 50%;
+	margin-left: -8px;
+	margin-top: -8px;
+	border: 2px solid #f3f3f3;
+	border-top: 2px solid #2271b1;
+	border-radius: 50%;
+	animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+	0% { transform: rotate(0deg); }
+	100% { transform: rotate(360deg); }
+}
+
+/* Responsive adjustments */
+@media screen and (max-width: 782px) {
+	.nbs3-credential-fields {
+		gap: 15px;
+	}
+	
+	.nbs3-credential-field input[type="text"],
+	.nbs3-credential-field input[type="password"],
+	.nbs3-password-field-wrapper {
+		max-width: 100%;
+	}
+	
+	.nbs3-connection-status {
+		display: flex;
+		flex-wrap: wrap;
+		width: 100%;
+	}
+	
+	.nbs3-status-time {
+		flex-basis: 100%;
+		margin-left: 28px;
+		margin-top: 4px;
+	}
+	
+	.nbs3-credentials-actions {
+		gap: 10px;
+		width: 100%;
+	}
+	
+	.nbs3-save-credentials,
+	.nbs3_js_test_connection {
+		flex: 1;
+		justify-content: center;
+		min-width: 140px;
+	}
+}
+
+/* AJAX Save Settings - Section Overlay */
+.nbs3-section-overlay {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background-color: rgba(255, 255, 255, 0.7);
+	z-index: 100;
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 0.3s ease;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.nbs3-section-overlay.active {
+	opacity: 1;
+	pointer-events: all;
+}
+
+.nbs3-section-overlay::after {
+	content: "";
+	width: 40px;
+	height: 40px;
+	border: 4px solid #f3f3f3;
+	border-top: 4px solid #2271b1;
+	border-radius: 50%;
+	animation: spin 0.8s linear infinite;
+}
+
+/* Button wrapper for INPUT elements (needed for spinner) */
+.nbs3-button-wrapper {
+	position: relative;
+	display: inline-block;
+}
+
+.nbs3-button-wrapper::after {
+	content: "";
+	position: absolute;
+	width: 16px;
+	height: 16px;
+	top: 50%;
+	left: 50%;
+	margin-left: -8px;
+	margin-top: -8px;
+	border: 2px solid #f3f3f3;
+	border-top: 2px solid #2271b1;
+	border-radius: 50%;
+	animation: spin 0.8s linear infinite;
+	opacity: 1;
+}
+
+/* Loading state for save buttons */
+#nbs3 .button-primary.loading,
+.nbs3-save-credentials.loading {
+	position: relative;
+	color: transparent !important;
+	pointer-events: none;
+	opacity: 0.9;
+	transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Only apply ::after to BUTTON elements (not INPUT) */
+button.button-primary.loading::after,
+button.nbs3-save-credentials.loading::after {
+	content: "";
+	position: absolute;
+	width: 16px;
+	height: 16px;
+	top: 50%;
+	left: 50%;
+	margin-left: -8px;
+	margin-top: -8px;
+	border: 2px solid #f3f3f3;
+	border-top: 2px solid #2271b1;
+	border-radius: 50%;
+	animation: spin 0.8s linear infinite;
+}
+
+#nbs3 .button-primary.loading .dashicons,
+.nbs3-save-credentials.loading .dashicons {
+	opacity: 0;
+	transition: opacity 0.2s ease;
+}
+
+/* Success state for save buttons */
+#nbs3 .button-primary.success,
+.nbs3-save-credentials.success {
+	background-color: #00a32a !important;
+	border-color: #00a32a !important;
+	animation: successPulse 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+	transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+#nbs3 .button-primary.success .dashicons,
+.nbs3-save-credentials.success .dashicons {
+	animation: checkmarkAppear 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) 0.1s backwards;
+}
+
+@keyframes successPulse {
+	0% {
+		transform: scale(1);
+	}
+	50% {
+		transform: scale(1.08);
+	}
+	100% {
+		transform: scale(1);
+	}
+}
+
+@keyframes checkmarkAppear {
+	0% {
+		opacity: 0;
+		transform: scale(0.5) rotate(-10deg);
+	}
+	100% {
+		opacity: 1;
+		transform: scale(1) rotate(0deg);
+	}
+}
+
+/* Smooth button transitions */
+#nbs3 .button-primary,
+.nbs3-save-credentials {
+	transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Error messages for AJAX */
+.nbs3-ajax-error {
+	animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+	from {
+		opacity: 0;
+		transform: translateY(-10px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+/* Ensure sections have position relative for overlay */
+.nbs3-section {
+	position: relative;
+}
