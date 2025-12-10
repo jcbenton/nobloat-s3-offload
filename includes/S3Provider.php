@@ -13,9 +13,10 @@ class S3Provider
 
     public function getClient()
     {
+        // Always create a fresh client to ensure we use current credentials
         if ($this->s3Client === null) {
-            $endpoint = nbs3_get_credential('endpoint');
-            $region = nbs3_get_credential('region') ?: 'us-east-1';
+            $endpoint = trim(nbs3_get_credential('endpoint'));
+            $region = trim(nbs3_get_credential('region')) ?: 'us-east-1';
             $key = nbs3_get_credential('key');
             $secret = nbs3_get_credential('secret');
             $path_style = nbs3_get_credential('path_style_endpoint');
@@ -33,11 +34,13 @@ class S3Provider
             // Add endpoint for S3-compatible services (R2, Spaces, MinIO, etc.)
             if (!empty($endpoint)) {
                 $config['endpoint'] = nbs3_normalize_url($endpoint);
-            }
-
-            // Use path-style endpoints if configured
-            if (!empty($path_style)) {
-                $config['use_path_style_endpoint'] = true;
+                // Use path-style endpoints if configured (for MinIO, etc.)
+                if (!empty($path_style)) {
+                    $config['use_path_style_endpoint'] = true;
+                }
+            } else {
+                // For AWS S3, use regional endpoint
+                $config['endpoint'] = "https://s3.{$region}.amazonaws.com";
             }
 
             $this->s3Client = new S3Client($config);
@@ -49,6 +52,11 @@ class S3Provider
     public function getBucket()
     {
         return nbs3_get_credential('bucket');
+    }
+
+    public function getProviderName()
+    {
+        return 's3';
     }
 
     public function getDomain()
@@ -83,6 +91,7 @@ class S3Provider
             $result = $client->putObject($params);
             return $client->getObjectUrl($this->getBucket(), $key);
         } catch (\Exception $e) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging for S3 failures
             error_log("NBS3: Error uploading file to S3: {$e->getMessage()}");
             return false;
         }
@@ -107,20 +116,51 @@ class S3Provider
 
     /**
      * Check the connection to S3
+     *
+     * @throws \Exception if connection fails
      */
     public function checkConnection()
     {
         $client = $this->getClient();
+        $bucket = $this->getBucket();
+
+        // Try to upload and delete a small test file
+        $testKey = '.nbs3-connection-test-' . time();
+
+        $client->putObject([
+            'Bucket' => $bucket,
+            'Key' => $testKey,
+            'Body' => 'test',
+            '@http' => [
+                'timeout' => 10,
+            ],
+        ]);
+
+        // Clean up test file
+        $client->deleteObject([
+            'Bucket' => $bucket,
+            'Key' => $testKey,
+        ]);
+
+        return true;
+    }
+
+    /**
+     * Download a file from S3 to local path
+     */
+    public function downloadFile(string $key, string $localPath): bool
+    {
+        $client = $this->getClient();
         try {
-            $result = $client->headBucket([
+            $result = $client->getObject([
                 'Bucket' => $this->getBucket(),
-                '@http' => [
-                    'timeout' => 5,
-                ],
+                'Key' => $key,
+                'SaveAs' => $localPath,
             ]);
             return true;
         } catch (\Exception $e) {
-            error_log("NBS3: Error checking connection: {$e->getMessage()}");
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging for S3 failures
+            error_log("NBS3: Error downloading file from S3: {$e->getMessage()}");
             return false;
         }
     }
@@ -144,6 +184,7 @@ class S3Provider
 
             return true;
         } catch (\Exception $e) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging for S3 failures
             error_log("NBS3: Error deleting file from S3: {$e->getMessage()}");
             return false;
         }
@@ -229,6 +270,7 @@ class S3Provider
         $nbs3_path = get_post_meta($attachment_id, 'nbs3_path', true);
 
         if (empty($attached_file)) {
+            // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- $attachment_id is cast to int, exception caught and sanitized before output
             throw new \Exception("Unable to find attached file for attachment ID {$attachment_id}");
         }
 
@@ -236,6 +278,7 @@ class S3Provider
         $file_name = sanitize_file_name($file_name);
 
         if (empty($file_name)) {
+            // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- $attachment_id is cast to int, exception caught and sanitized before output
             throw new \Exception("Invalid file name for attachment ID {$attachment_id}");
         }
 
@@ -272,10 +315,11 @@ class S3Provider
             ['name' => 'bucket', 'label' => __('Bucket Name', 'nobloat-s3-offload'), 'type' => 'text', 'placeholder' => 'my-bucket'],
             ['name' => 'key', 'label' => __('Access Key', 'nobloat-s3-offload'), 'type' => 'text', 'placeholder' => 'AKIAIOSFODNN7EXAMPLE'],
             ['name' => 'secret', 'label' => __('Secret Key', 'nobloat-s3-offload'), 'type' => 'password', 'placeholder' => 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'],
-            ['name' => 'domain', 'label' => __('Custom Domain (CDN)', 'nobloat-s3-offload'), 'type' => 'text', 'placeholder' => 'https://cdn.example.com', 'description' => __('Optional. Custom domain or CDN URL for serving files.', 'nobloat-s3-offload')],
+            ['name' => 'domain', 'label' => __('CloudFront or Custom Domain (CDN)', 'nobloat-s3-offload'), 'type' => 'text', 'placeholder' => 'https://d1234.cloudfront.net', 'description' => __('Enter your CloudFront distribution URL or custom CDN domain. When set, media URLs will be rewritten to serve files from this domain instead of your local server.', 'nobloat-s3-offload')],
             ['name' => 'path_style_endpoint', 'label' => __('Use Path-Style Endpoint', 'nobloat-s3-offload'), 'type' => 'checkbox', 'description' => __('Enable for MinIO or other S3-compatible services that require path-style URLs.', 'nobloat-s3-offload')],
         ];
 
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- getCredentialsFieldHTML() returns pre-escaped HTML
         echo $this->getCredentialsFieldHTML($fields);
     }
 
@@ -310,10 +354,12 @@ class S3Provider
             }
 
             if ($is_constant_defined) {
-                $html .= '<p class="description">' . sprintf(
+                $set_in_text = sprintf(
+                    /* translators: %s: wp-config.php code element */
                     esc_html__('Set in %s', 'nobloat-s3-offload'),
                     '<code>wp-config.php</code>'
-                ) . '</p>';
+                );
+                $html .= '<p class="description">' . $set_in_text . '</p>';
             }
 
             $html .= '</div>';
@@ -325,13 +371,13 @@ class S3Provider
 
         if ($field_type === 'password' && !$is_constant_defined) {
             $html .= '<div class="nbs3-password-field-wrapper">';
-            $html .= '<input type="password" id="' . esc_attr($input_id) . '" name="' . esc_attr($input_name) . '" value="' . esc_attr($field_value) . '" placeholder="' . esc_attr($placeholder) . '" class="regular-text nbs3-password-input" ' . $disabled . ' />';
+            $html .= '<input type="password" id="' . esc_attr($input_id) . '" name="' . esc_attr($input_name) . '" value="' . esc_attr($field_value) . '" placeholder="' . esc_attr($placeholder) . '" class="regular-text nbs3-password-input" autocomplete="new-password" ' . $disabled . ' />';
             $html .= '<button type="button" class="button nbs3-toggle-password" aria-label="' . esc_attr__('Toggle password visibility', 'nobloat-s3-offload') . '">';
             $html .= '<span class="dashicons dashicons-visibility"></span>';
             $html .= '</button>';
             $html .= '</div>';
         } else {
-            $html .= '<input type="' . esc_attr($field_type) . '" id="' . esc_attr($input_id) . '" name="' . esc_attr($input_name) . '" value="' . esc_attr($display_value) . '" placeholder="' . esc_attr($placeholder) . '" class="regular-text" ' . $disabled . ' />';
+            $html .= '<input type="' . esc_attr($field_type) . '" id="' . esc_attr($input_id) . '" name="' . esc_attr($input_name) . '" value="' . esc_attr($display_value) . '" placeholder="' . esc_attr($placeholder) . '" class="regular-text" autocomplete="off" ' . $disabled . ' />';
         }
 
         if (!empty($description)) {
@@ -339,10 +385,12 @@ class S3Provider
         }
 
         if ($is_constant_defined) {
-            $html .= '<p class="description">' . sprintf(
+            $set_in_text = sprintf(
+                /* translators: %s: wp-config.php code element */
                 esc_html__('Set in %s', 'nobloat-s3-offload'),
                 '<code>wp-config.php</code>'
-            ) . '</p>';
+            );
+            $html .= '<p class="description">' . $set_in_text . '</p>';
         }
 
         $html .= '</div>';
@@ -355,11 +403,13 @@ class S3Provider
         $html = '<div class="nbs3-credentials-container">';
 
         $html .= '<div class="nbs3-credentials-info notice notice-info inline">';
-        $html .= '<p>' . sprintf(
-            esc_html__('%s Credentials can be set here or in %s for security. Constants take priority.', 'nobloat-s3-offload'),
+        $tip_text = sprintf(
+            /* translators: %1$s: "Tip:" label, %2$s: wp-config.php code element */
+            esc_html__('%1$s Credentials can be set here or in %2$s for security. Constants take priority.', 'nobloat-s3-offload'),
             '<strong>' . esc_html__('Tip:', 'nobloat-s3-offload') . '</strong>',
             '<code>wp-config.php</code>'
-        ) . '</p>';
+        );
+        $html .= '<p>' . $tip_text . '</p>';
         $html .= '</div>';
 
         $html .= '<div class="nbs3-credential-fields">';

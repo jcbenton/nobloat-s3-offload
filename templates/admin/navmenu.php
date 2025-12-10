@@ -7,7 +7,7 @@ function nbs3_get_admin_page_url(string $page): string
     return get_admin_url(null, "admin.php?page={$page}");
 }
 
-$menu_items = [
+$nbs3_menu_items = [
     'general' => [
         'title' => __('General Settings', 'nobloat-s3-offload'),
         'url' => nbs3_get_admin_page_url('nbs3'),
@@ -15,6 +15,10 @@ $menu_items = [
     'media-overview' => [
         'title' => __('Media Overview', 'nobloat-s3-offload'),
         'url' => nbs3_get_admin_page_url('nbs3_media_overview'),
+    ],
+    'documentation' => [
+        'title' => __('Documentation', 'nobloat-s3-offload'),
+        'url' => nbs3_get_admin_page_url('nbs3_documentation'),
     ],
 ];
 
@@ -32,8 +36,11 @@ function nbs3_generate_menu_item(array $item, string $page): string
 
 <div class="nbs3-menu">
     <nav>
-        <?php foreach ($menu_items as $slug => $item) : ?>
-            <?php echo nbs3_generate_menu_item($item, $slug); ?>
+        <?php foreach ($nbs3_menu_items as $nbs3_slug => $nbs3_item) : ?>
+            <?php
+            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- nbs3_generate_menu_item() escapes internally
+            echo nbs3_generate_menu_item($nbs3_item, $nbs3_slug);
+            ?>
         <?php endforeach; ?>
     </nav>
 </div>

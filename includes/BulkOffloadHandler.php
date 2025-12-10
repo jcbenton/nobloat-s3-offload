@@ -49,6 +49,7 @@ class BulkOffloadHandler
                 wp_schedule_event(time(), 'nbs3_fifteen_min', 'nbs3_check_stalled_processes');
             }
         } catch (\Exception $e) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging
             error_log('NBS3 - Error: ' . $e->getMessage());
         }
     }
@@ -80,10 +81,11 @@ class BulkOffloadHandler
         if ($process_lock && ($current_time - $last_update) > 600) {
             $bulk_data = nbs3_get_bulk_offload_data();
 
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging for debugging stalled processes
             error_log(sprintf(
                 'NBS3: Detected stalled bulk offload process. Lock time: %s, Last update: %s, Processed: %d/%d',
-                date('Y-m-d H:i:s', $process_lock),
-                date('Y-m-d H:i:s', $last_update),
+                gmdate('Y-m-d H:i:s', $process_lock),
+                gmdate('Y-m-d H:i:s', $last_update),
                 $bulk_data['processed'] ?? 0,
                 $bulk_data['total'] ?? 0
             ));
@@ -102,6 +104,7 @@ class BulkOffloadHandler
             $bulk_data = nbs3_get_bulk_offload_data();
 
             if (isset($bulk_data['status']) && in_array($bulk_data['status'], ['processing', 'starting'])) {
+                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging
                 error_log('NBS3: Cleaning up very old bulk offload process (>1 hour)');
 
                 $this->force_unlock_process();
@@ -159,6 +162,7 @@ class BulkOffloadHandler
                 'total' => $bulk_offload_data['total'],
             ]);
         } catch (\Exception $e) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging
             error_log('NBS3 Bulk Offload Error: ' . $e->getMessage());
             wp_send_json_error([
                 'message' => $e->getMessage()
@@ -193,7 +197,14 @@ class BulkOffloadHandler
     {
         $ready = $this->ensure_process_ready();
         if (is_wp_error($ready)) {
+            // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- WP_Error message is safe, exception is caught and sanitized before output
             throw new \Exception($ready->get_error_message());
+        }
+
+        // Clear any existing queue items from previous runs (without triggering cancelled hook)
+        $batches = $this->process_all->get_batches();
+        foreach ($batches as $batch) {
+            $this->process_all->delete($batch->key);
         }
 
         $names = $this->get_unoffloaded_attachments();
@@ -226,6 +237,7 @@ class BulkOffloadHandler
             $batch_size * 2
         );
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Query is prepared above, complex JOIN for finding unoffloaded attachments
         $normal_attachments = $wpdb->get_col($query);
 
         foreach ($normal_attachments as $attachment_id) {
@@ -243,6 +255,7 @@ class BulkOffloadHandler
 
                 if ($file_size > 10) {
                     $error_msg = sprintf(
+                        /* translators: %s: maximum file size in MB */
                         __('File exceeds maximum size (%s MB) for bulk processing', 'nobloat-s3-offload'),
                         '10'
                     );
@@ -279,6 +292,7 @@ class BulkOffloadHandler
                 $remaining_slots * 2
             );
 
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Query is prepared above, complex JOIN for finding failed attachments
             $error_attachments = $wpdb->get_col($error_query);
 
             foreach ($error_attachments as $attachment_id) {

@@ -120,6 +120,7 @@ class AttachmentOffloadButtonObserver implements ObserverInterface
             ]);
         }
 
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotValidated -- Nonce verified in verify_ajax_request(), attachment_id sanitized by intval()
         $attachment_id = intval($_POST['attachment_id']);
 
         // Verify attachment exists and is not already offloaded
@@ -140,10 +141,10 @@ class AttachmentOffloadButtonObserver implements ObserverInterface
                     'attachment_id' => $attachment_id
                 ]);
             } else {
-                // Check for specific error messages
+                // Check for specific error messages (sanitized for safety)
                 $errors = get_post_meta($attachment_id, 'nbs3_error_log', true);
                 $error_message = !empty($errors) ?
-                    (is_array($errors) ? implode('; ', $errors) : $errors) :
+                    wp_kses((is_array($errors) ? implode('; ', $errors) : $errors), []) :
                     __('Failed to offload attachment. Please try again.', 'nobloat-s3-offload');
 
                 wp_send_json_error([
@@ -153,8 +154,9 @@ class AttachmentOffloadButtonObserver implements ObserverInterface
         } catch (\Exception $e) {
             wp_send_json_error([
                 'message' => sprintf(
+                    /* translators: %s: error message */
                     __('Error: %s', 'nobloat-s3-offload'),
-                    $e->getMessage()
+                    wp_kses($e->getMessage(), [])
                 )
             ]);
         }
@@ -234,8 +236,13 @@ class AttachmentOffloadButtonObserver implements ObserverInterface
                         success: function(response) {
                             $processingIndicator.hide();
 
+                            // Create status span safely (XSS protection)
+                            var $span = $('<span>').css({'font-weight': '500'});
+                            var message = response.data && response.data.message ? response.data.message : '';
+
                             if (response.success) {
-                                $status.html('<span style="color: #00a32a; font-weight: 500;">✓ ' + response.data.message + '</span>').show();
+                                $span.css('color', '#00a32a').text('✓ ' + message);
+                                $status.empty().append($span).show();
 
                                 // Hide the button after successful offload
                                 $button.fadeOut(300, function() {
@@ -247,13 +254,15 @@ class AttachmentOffloadButtonObserver implements ObserverInterface
                                     location.reload();
                                 }, 2000);
                             } else {
-                                $status.html('<span style="color: #d63638; font-weight: 500;">✗ ' + response.data.message + '</span>').show();
+                                $span.css('color', '#d63638').text('✗ ' + message);
+                                $status.empty().append($span).show();
                                 $button.prop('disabled', false).text(originalText);
                             }
                         },
                         error: function() {
                             $processingIndicator.hide();
-                            $status.html('<span style="color: #d63638; font-weight: 500;">✗ <?php echo esc_js(__('Network error. Please try again.', 'nobloat-s3-offload')); ?></span>').show();
+                            var $span = $('<span>').css({'color': '#d63638', 'font-weight': '500'}).text('✗ <?php echo esc_js(__('Network error. Please try again.', 'nobloat-s3-offload')); ?>');
+                            $status.empty().append($span).show();
                             $button.prop('disabled', false).text(originalText);
                         }
                     });

@@ -4,16 +4,19 @@ namespace NBS3\CLI;
 
 use NBS3\S3Provider;
 use NBS3\Services\BricksCssSyncService;
+use NBS3\Services\BricksThemeAssetsSyncService;
 
 /**
  * WP CLI command for Bricks CSS sync operations.
  */
 class BricksSyncCommand
 {
-    private ?BricksCssSyncService $syncService = null;
+    private ?BricksCssSyncService $cssSyncService = null;
+    private ?BricksThemeAssetsSyncService $themeAssetsSyncService = null;
+    private ?S3Provider $s3Provider = null;
 
     /**
-     * Sync Bricks CSS files to S3.
+     * Sync Bricks CSS files and theme assets to S3.
      *
      * ## OPTIONS
      *
@@ -21,20 +24,32 @@ class BricksSyncCommand
      * : Show sync status without syncing.
      *
      * [--remove]
-     * : Remove all Bricks CSS files from S3.
+     * : Remove all Bricks files from S3.
+     *
+     * [--css-only]
+     * : Only sync generated CSS files (skip theme assets).
+     *
+     * [--assets-only]
+     * : Only sync theme assets (skip generated CSS).
      *
      * [--verbose]
      * : Show detailed output.
      *
      * ## EXAMPLES
      *
-     *     # Sync all Bricks CSS files
+     *     # Sync all Bricks CSS files and theme assets (if enabled)
      *     wp nbs3 sync-bricks
      *
      *     # Show sync status
      *     wp nbs3 sync-bricks --status
      *
-     *     # Remove all Bricks CSS from S3
+     *     # Only sync generated CSS files
+     *     wp nbs3 sync-bricks --css-only
+     *
+     *     # Only sync theme assets
+     *     wp nbs3 sync-bricks --assets-only
+     *
+     *     # Remove all Bricks files from S3
      *     wp nbs3 sync-bricks --remove
      *
      * @param array $args Positional arguments.
@@ -53,125 +68,245 @@ class BricksSyncCommand
             \WP_CLI::error('No S3 credentials configured. Please configure your S3 settings first.');
         }
 
-        $syncService = $this->getSyncService();
+        $verbose = isset($assoc_args['verbose']);
+        $cssOnly = isset($assoc_args['css-only']);
+        $assetsOnly = isset($assoc_args['assets-only']);
+
+        // Determine what to sync
+        $syncCss = !$assetsOnly;
+        $syncAssets = !$cssOnly && nbs3_get_setting('sync_bricks_theme_assets', false);
 
         // Handle --status flag
         if (isset($assoc_args['status'])) {
-            $this->showStatus($syncService);
+            $this->showStatus($syncCss, $syncAssets);
             return;
         }
 
         // Handle --remove flag
         if (isset($assoc_args['remove'])) {
-            $this->removeFromS3($syncService);
+            $this->removeFromS3($syncCss, $syncAssets);
             return;
         }
 
         // Perform sync
-        $this->performSync($syncService, isset($assoc_args['verbose']));
+        $this->performSync($syncCss, $syncAssets, $verbose, $cssOnly);
     }
 
     /**
      * Show sync status.
      */
-    private function showStatus(BricksCssSyncService $syncService): void
+    private function showStatus(bool $showCss, bool $showAssets): void
     {
-        $status = $syncService->getStatus();
+        if ($showCss) {
+            $cssService = $this->getCssSyncService();
+            $cssStatus = $cssService->getStatus();
 
-        \WP_CLI::log('Bricks CSS Sync Status:');
-        \WP_CLI::log(sprintf('  Total local files: %d', $status['total']));
-        \WP_CLI::log(sprintf('  Synced to S3: %d', $status['synced']));
-        \WP_CLI::log(sprintf('  Pending sync: %d', $status['pending']));
+            \WP_CLI::log('Bricks CSS Sync Status:');
+            \WP_CLI::log(sprintf('  Total local files: %d', $cssStatus['total']));
+            \WP_CLI::log(sprintf('  Synced to S3: %d', $cssStatus['synced']));
+            \WP_CLI::log(sprintf('  Pending sync: %d', $cssStatus['pending']));
 
-        $setting_enabled = nbs3_get_setting('sync_bricks_css', false);
-        \WP_CLI::log(sprintf('  Auto-sync enabled: %s', $setting_enabled ? 'Yes' : 'No'));
+            $cssSetting = nbs3_get_setting('sync_bricks_css', false);
+            \WP_CLI::log(sprintf('  Auto-sync enabled: %s', $cssSetting ? 'Yes' : 'No'));
+        }
+
+        $assetsSetting = nbs3_get_setting('sync_bricks_theme_assets', false);
+
+        if ($showAssets || $assetsSetting) {
+            $assetsService = $this->getThemeAssetsSyncService();
+            $assetsStatus = $assetsService->getStatus();
+
+            \WP_CLI::log('');
+            \WP_CLI::log('Bricks Theme Assets Sync Status:');
+            \WP_CLI::log(sprintf('  Total local files: %d', $assetsStatus['total']));
+            \WP_CLI::log(sprintf('  Synced to S3: %d', $assetsStatus['synced']));
+            \WP_CLI::log(sprintf('  Pending sync: %d', $assetsStatus['pending']));
+            \WP_CLI::log(sprintf('  Auto-sync enabled: %s', $assetsSetting ? 'Yes' : 'No'));
+        } elseif (!$showAssets) {
+            \WP_CLI::log('');
+            \WP_CLI::log('Bricks Theme Assets: Not enabled (enable in settings to sync)');
+        }
     }
 
     /**
      * Perform full sync.
      */
-    private function performSync(BricksCssSyncService $syncService, bool $verbose): void
+    private function performSync(bool $syncCss, bool $syncAssets, bool $verbose, bool $cssOnly = false): void
     {
-        \WP_CLI::log('Starting Bricks CSS sync...');
+        $totalUploaded = 0;
+        $totalDeleted = 0;
+        $totalErrors = 0;
 
-        $local_files = $syncService->scanLocalFiles();
-        $total = count($local_files);
+        // Sync generated CSS files
+        if ($syncCss) {
+            \WP_CLI::log('Starting Bricks CSS sync...');
 
-        if ($total === 0) {
-            \WP_CLI::success('No Bricks CSS files found to sync.');
-            return;
+            $cssService = $this->getCssSyncService();
+            $local_files = $cssService->scanLocalFiles();
+            $total = count($local_files);
+
+            if ($total === 0) {
+                \WP_CLI::log('No Bricks CSS files found.');
+            } else {
+                \WP_CLI::log(sprintf('Found %d local CSS files.', $total));
+
+                $result = $cssService->fullSync();
+                $totalUploaded += $result['uploaded'];
+                $totalDeleted += $result['deleted'];
+                $totalErrors += $result['errors'];
+
+                if ($verbose) {
+                    \WP_CLI::log(sprintf('  CSS uploaded: %d', $result['uploaded']));
+                    \WP_CLI::log(sprintf('  CSS deleted from S3: %d', $result['deleted']));
+                    \WP_CLI::log(sprintf('  CSS errors: %d', $result['errors']));
+                }
+            }
         }
 
-        \WP_CLI::log(sprintf('Found %d local CSS files.', $total));
+        // Sync theme assets
+        if ($syncAssets) {
+            \WP_CLI::log('');
+            \WP_CLI::log('Starting Bricks theme assets sync...');
 
-        $result = $syncService->fullSync();
+            $assetsService = $this->getThemeAssetsSyncService();
+            $local_files = $assetsService->scanLocalFiles();
+            $total = count($local_files);
 
-        if ($verbose) {
-            \WP_CLI::log(sprintf('  Uploaded: %d', $result['uploaded']));
-            \WP_CLI::log(sprintf('  Deleted from S3: %d', $result['deleted']));
-            \WP_CLI::log(sprintf('  Errors: %d', $result['errors']));
+            if ($total === 0) {
+                \WP_CLI::log('No Bricks theme asset files found.');
+            } else {
+                \WP_CLI::log(sprintf('Found %d local theme asset files.', $total));
+
+                $result = $assetsService->fullSync();
+                $totalUploaded += $result['uploaded'];
+                $totalDeleted += $result['deleted'];
+                $totalErrors += $result['errors'];
+
+                if ($verbose) {
+                    \WP_CLI::log(sprintf('  Assets uploaded: %d', $result['uploaded']));
+                    \WP_CLI::log(sprintf('  Assets skipped (unchanged): %d', $result['skipped']));
+                    \WP_CLI::log(sprintf('  Assets deleted from S3: %d', $result['deleted']));
+                    \WP_CLI::log(sprintf('  Assets errors: %d', $result['errors']));
+                }
+            }
+        } elseif (!$cssOnly) {
+            // Show hint about theme assets only if not using --css-only (i.e., normal sync mode)
+            \WP_CLI::log('');
+            \WP_CLI::log('Theme assets sync not enabled. Enable in settings or use --assets-only to force.');
         }
 
-        if ($result['errors'] > 0) {
+        // Summary
+        \WP_CLI::log('');
+        if ($totalErrors > 0) {
             \WP_CLI::warning(sprintf(
-                'Sync completed with %d errors. Check error log for details.',
-                $result['errors']
+                'Sync completed with %d errors. %d uploaded, %d deleted.',
+                $totalErrors,
+                $totalUploaded,
+                $totalDeleted
             ));
         } else {
             \WP_CLI::success(sprintf(
-                'Sync completed. %d uploaded, %d deleted, %d total synced.',
-                $result['uploaded'],
-                $result['deleted'],
-                $result['total_synced']
+                'Sync completed. %d uploaded, %d deleted.',
+                $totalUploaded,
+                $totalDeleted
             ));
         }
     }
 
     /**
-     * Remove all Bricks CSS from S3.
+     * Remove all Bricks files from S3.
      */
-    private function removeFromS3(BricksCssSyncService $syncService): void
+    private function removeFromS3(bool $removeCss, bool $removeAssets): void
     {
-        $synced_files = $syncService->getSyncedFiles();
-        $count = count($synced_files);
+        $cssCount = 0;
+        $assetsCount = 0;
 
-        if ($count === 0) {
-            \WP_CLI::success('No Bricks CSS files to remove from S3.');
+        if ($removeCss) {
+            $cssService = $this->getCssSyncService();
+            $cssCount = count($cssService->getSyncedFiles());
+        }
+
+        if ($removeAssets) {
+            $assetsService = $this->getThemeAssetsSyncService();
+            $assetsCount = count($assetsService->getSyncedFiles());
+        }
+
+        $totalCount = $cssCount + $assetsCount;
+
+        if ($totalCount === 0) {
+            \WP_CLI::success('No Bricks files to remove from S3.');
             return;
         }
 
-        \WP_CLI::confirm(sprintf(
-            'This will remove %d Bricks CSS files from S3. Continue?',
-            $count
-        ));
+        $message = sprintf('This will remove %d files from S3', $totalCount);
+        if ($cssCount > 0 && $assetsCount > 0) {
+            $message .= sprintf(' (%d CSS, %d theme assets)', $cssCount, $assetsCount);
+        }
+        $message .= '. Continue?';
 
-        \WP_CLI::log('Removing Bricks CSS files from S3...');
+        \WP_CLI::confirm($message);
 
-        $result = $syncService->removeAllFromS3();
+        $totalDeleted = 0;
+        $totalErrors = 0;
 
-        if ($result['errors'] > 0) {
+        if ($removeCss && $cssCount > 0) {
+            \WP_CLI::log('Removing Bricks CSS files from S3...');
+            $result = $this->getCssSyncService()->removeAllFromS3();
+            $totalDeleted += $result['deleted'];
+            $totalErrors += $result['errors'];
+        }
+
+        if ($removeAssets && $assetsCount > 0) {
+            \WP_CLI::log('Removing Bricks theme assets from S3...');
+            $result = $this->getThemeAssetsSyncService()->removeAllFromS3();
+            $totalDeleted += $result['deleted'];
+            $totalErrors += $result['errors'];
+        }
+
+        if ($totalErrors > 0) {
             \WP_CLI::warning(sprintf(
                 'Removal completed with %d errors. %d files deleted.',
-                $result['errors'],
-                $result['deleted']
+                $totalErrors,
+                $totalDeleted
             ));
         } else {
             \WP_CLI::success(sprintf(
-                'Successfully removed %d Bricks CSS files from S3.',
-                $result['deleted']
+                'Successfully removed %d Bricks files from S3.',
+                $totalDeleted
             ));
         }
     }
 
     /**
-     * Get or create the sync service instance.
+     * Get or create the S3 provider instance.
      */
-    private function getSyncService(): BricksCssSyncService
+    private function getS3Provider(): S3Provider
     {
-        if ($this->syncService === null) {
-            $s3Provider = new S3Provider();
-            $this->syncService = new BricksCssSyncService($s3Provider);
+        if ($this->s3Provider === null) {
+            $this->s3Provider = new S3Provider();
         }
-        return $this->syncService;
+        return $this->s3Provider;
+    }
+
+    /**
+     * Get or create the CSS sync service instance.
+     */
+    private function getCssSyncService(): BricksCssSyncService
+    {
+        if ($this->cssSyncService === null) {
+            $this->cssSyncService = new BricksCssSyncService($this->getS3Provider());
+        }
+        return $this->cssSyncService;
+    }
+
+    /**
+     * Get or create the theme assets sync service instance.
+     */
+    private function getThemeAssetsSyncService(): BricksThemeAssetsSyncService
+    {
+        if ($this->themeAssetsSyncService === null) {
+            $this->themeAssetsSyncService = new BricksThemeAssetsSyncService($this->getS3Provider());
+        }
+        return $this->themeAssetsSyncService;
     }
 }

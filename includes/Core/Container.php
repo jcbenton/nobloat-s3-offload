@@ -16,6 +16,7 @@ class Container
     public function get(string $id)
     {
         if (!isset($this->services[$id])) {
+            // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- $id is a class name constant, not user input
             throw new \Exception("Service '$id' not found in container");
         }
 

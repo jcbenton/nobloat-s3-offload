@@ -1,154 +1,4 @@
 addEventListener("DOMContentLoaded", function () {
-	// Select the cloud provider dropdown
-	const cloudProviderSelect = document.querySelector(
-		'select[name="nbs3_settings[cloud_provider]"]',
-	);
-
-	if (!cloudProviderSelect) {
-		console.error("Cloud provider select not found");
-		return;
-	}
-
-	// Select the form (assuming it's the parent form of the select field)
-	const form = cloudProviderSelect.closest("form");
-
-	if (!form) {
-		console.error("Parent form not found");
-		return;
-	}
-
-	// Add event listener to the select field
-	cloudProviderSelect.addEventListener("change", function (e) {
-		const selectedProvider = e.target.value;
-		
-		// Don't do anything if empty/placeholder is selected
-		if (!selectedProvider) {
-			return;
-		}
-
-		// Find the credentials field container
-		const credentialsField = document.querySelector('.nbs3-cloud-provider-credentials');
-		const cloudProviderSection = document.querySelector('.nbs3-cloud-provider-settings');
-		
-		if (!credentialsField) {
-			console.error('Credentials field container not found');
-			return;
-		}
-
-		// Add loading overlay
-		if (cloudProviderSection) {
-			addOverlay(cloudProviderSection);
-		}
-
-		// Prepare AJAX request
-		const data = new URLSearchParams();
-		data.append('action', 'nbs3_get_provider_credentials');
-		data.append('security_nonce', nbs3_ajax_object.get_provider_credentials_nonce);
-		data.append('provider', selectedProvider);
-
-		// Fetch the credentials HTML
-		fetch(nbs3_ajax_object.ajax_url, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/x-www-form-urlencoded',
-			},
-			body: data
-		})
-		.then(response => response.json())
-		.then(data => {
-			// Remove loading overlay
-			if (cloudProviderSection) {
-				removeOverlay(cloudProviderSection);
-			}
-
-			if (data.success && data.data.html) {
-				// Replace the credentials field content
-				const fieldContent = credentialsField.querySelector('td');
-				if (fieldContent) {
-					fieldContent.innerHTML = data.data.html;
-					
-					// Re-initialize password toggle listeners
-					initPasswordToggles();
-					
-					// Re-initialize test connection button
-					initTestConnection();
-
-					// Auto-save the provider selection
-					saveProviderSelection(selectedProvider);
-				}
-			} else {
-				// Show error message
-				const errorMessage = data.data?.message || 'Failed to load credentials fields.';
-				alert(errorMessage);
-				console.error('Error loading credentials:', errorMessage);
-			}
-		})
-		.catch(error => {
-			// Remove loading overlay
-			if (cloudProviderSection) {
-				removeOverlay(cloudProviderSection);
-			}
-			
-			alert('An error occurred while loading credentials fields. Please try again.');
-			console.error('Error:', error);
-		});
-	});
-	
-	// Helper function to save provider selection
-	function saveProviderSelection(provider) {
-		const data = new URLSearchParams();
-		data.append('action', 'nbs3_save_general_settings');
-		data.append('security_nonce', nbs3_ajax_object.save_general_nonce);
-		data.append('nbs3_settings[cloud_provider]', provider);
-
-		// Get other existing settings to preserve them
-		const autoOffload = document.getElementById('auto_offload_uploads');
-		const retentionPolicyRadios = document.querySelectorAll('input[name="nbs3_settings[retention_policy]"]');
-		const objectVersioning = document.getElementById('object_versioning');
-		const pathPrefixActive = document.getElementById('path_prefix_active');
-		const pathPrefix = document.getElementById('path_prefix');
-		const mirrorDelete = document.getElementById('mirror_delete');
-
-		if (autoOffload) {
-			data.append('nbs3_settings[auto_offload_uploads]', autoOffload.checked ? '1' : '0');
-		}
-
-		retentionPolicyRadios.forEach(radio => {
-			if (radio.checked) {
-				data.append('nbs3_settings[retention_policy]', radio.value);
-			}
-		});
-
-		if (objectVersioning) {
-			data.append('nbs3_settings[object_versioning]', objectVersioning.checked ? '1' : '0');
-		}
-
-		if (pathPrefixActive) {
-			data.append('nbs3_settings[path_prefix_active]', pathPrefixActive.checked ? '1' : '0');
-		}
-
-		if (pathPrefix) {
-			data.append('nbs3_settings[path_prefix]', pathPrefix.value);
-		}
-
-		if (mirrorDelete) {
-			data.append('nbs3_settings[mirror_delete]', mirrorDelete.checked ? '1' : '0');
-		}
-
-		// Save in the background
-		fetch(nbs3_ajax_object.ajax_url, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/x-www-form-urlencoded',
-			},
-			body: data
-		})
-		.then(response => response.json())
-		.catch(() => {
-			// Silent fail for background save
-		});
-	}
-
 	// Helper function to initialize password toggle functionality
 	function initPasswordToggles() {
 		const passwordToggles = document.querySelectorAll('.nbs3-toggle-password');
@@ -181,71 +31,12 @@ addEventListener("DOMContentLoaded", function () {
 		});
 	}
 
-	// Helper function to initialize test connection button
-	function initTestConnection() {
-		const nbs3_test_connection = document.querySelector(".nbs3_js_test_connection");
-
-		if (nbs3_test_connection) {
-			// Skip if listener already attached
-			if (nbs3_test_connection.hasAttribute('data-listener-attached')) {
-				return;
-			}
-
-			// Remove any existing listeners by cloning the button
-			const newTestButton = nbs3_test_connection.cloneNode(true);
-			nbs3_test_connection.parentNode.replaceChild(newTestButton, nbs3_test_connection);
-
-			// Mark as having listener attached
-			newTestButton.setAttribute('data-listener-attached', 'true');
-
-			newTestButton.addEventListener("click", function (e) {
-				e.preventDefault();
-
-				// Add loading state
-				newTestButton.classList.add('loading');
-				newTestButton.disabled = true;
-
-				const data = {
-					action: "nbs3_test_connection",
-					security_nonce: nbs3_ajax_object.nonce,
-				};
-
-				fetch(nbs3_ajax_object.ajax_url, {
-					method: "POST",
-					headers: {
-						"Content-Type": "application/x-www-form-urlencoded",
-					},
-					body: new URLSearchParams(data),
-				})
-					.then((response) => response.json())
-					.then((data) => {
-						newTestButton.classList.remove('loading');
-						newTestButton.disabled = false;
-
-						let lastCheckTime = data.data.last_check;
-						let message = data.data.message;
-						updateConnectionStatus(data.success, lastCheckTime, message);
-					})
-					.catch((error) => {
-						newTestButton.classList.remove('loading');
-						newTestButton.disabled = false;
-
-						const lastCheckTime = new Date().toLocaleString();
-						updateConnectionStatus(false, lastCheckTime, 'Connection failed!');
-						console.error("Error:", error.message);
-					});
-			});
-		}
-	}
-
-	// Connection test functionality
-	const nbs3_test_connection = document.querySelector(".nbs3_js_test_connection");
-
+	// Connection status update function
 	function updateConnectionStatus(isConnected, lastCheckTime, message = '') {
 		// Find or create the status element
 		let statusElement = document.querySelector('.nbs3-connection-status');
 		const actionsContainer = document.querySelector('.nbs3-credentials-actions');
-		
+
 		if (!statusElement && actionsContainer) {
 			// Create new status element
 			statusElement = document.createElement('div');
@@ -259,35 +50,94 @@ addEventListener("DOMContentLoaded", function () {
 		statusElement.className = `nbs3-connection-status ${isConnected ? 'connected' : 'disconnected'}`;
 
 		// Update icon
-		const icon = isConnected ? 
-			'<span class="dashicons dashicons-yes-alt"></span>' : 
+		const icon = isConnected ?
+			'<span class="dashicons dashicons-yes-alt"></span>' :
 			'<span class="dashicons dashicons-warning"></span>';
 
 		// Update status text
 		const statusText = message || (isConnected ? 'Connected' : 'Disconnected');
-		
-		// Update the entire content
-		statusElement.innerHTML = `
-			${icon}
-			<span class="nbs3-status-text">${statusText}</span>
-			<span class="nbs3-status-time">Last check: ${lastCheckTime}</span>
-		`;
 
-		// Show a temporary success message
-		if (message) {
+		// Update the entire content safely (XSS protection)
+		statusElement.innerHTML = icon; // icon is hardcoded HTML, safe
+
+		const textSpan = document.createElement('span');
+		textSpan.className = 'nbs3-status-text';
+		textSpan.textContent = statusText; // textContent escapes HTML
+		statusElement.appendChild(textSpan);
+
+		const timeSpan = document.createElement('span');
+		timeSpan.className = 'nbs3-status-time';
+		timeSpan.textContent = 'Last check: ' + lastCheckTime;
+		statusElement.appendChild(timeSpan);
+
+		// Only auto-clear success messages, keep error messages visible
+		if (message && isConnected) {
 			setTimeout(function () {
 				const statusTextEl = statusElement.querySelector('.nbs3-status-text');
 				if (statusTextEl) {
-					statusTextEl.textContent = isConnected ? 'Connected' : 'Disconnected';
+					statusTextEl.textContent = 'Connected';
 				}
-			}, 3000);
+			}, 5000);
 		}
 	}
 
-	// Initialize test connection button (if not already done by initTestConnection)
-	if (nbs3_test_connection && !nbs3_test_connection.hasAttribute('data-listener-attached')) {
-		initTestConnection();
+	// Initialize test connection button
+	function initTestConnection() {
+		const testButton = document.querySelector(".nbs3_js_test_connection");
+
+		if (!testButton) {
+			return;
+		}
+
+		// Skip if listener already attached
+		if (testButton.hasAttribute('data-listener-attached')) {
+			return;
+		}
+
+		// Mark as having listener attached
+		testButton.setAttribute('data-listener-attached', 'true');
+
+		testButton.addEventListener("click", function (e) {
+			e.preventDefault();
+
+			// Add loading state
+			testButton.classList.add('loading');
+			testButton.disabled = true;
+
+			const data = {
+				action: "nbs3_test_connection",
+				security_nonce: nbs3_ajax_object.nonce,
+			};
+
+			fetch(nbs3_ajax_object.ajax_url, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/x-www-form-urlencoded",
+				},
+				body: new URLSearchParams(data),
+			})
+				.then((response) => response.json())
+				.then((data) => {
+					testButton.classList.remove('loading');
+					testButton.disabled = false;
+
+					const lastCheckTime = data.data.last_check;
+					const message = data.data.message;
+					updateConnectionStatus(data.success, lastCheckTime, message);
+				})
+				.catch((error) => {
+					testButton.classList.remove('loading');
+					testButton.disabled = false;
+
+					const lastCheckTime = new Date().toLocaleString();
+					updateConnectionStatus(false, lastCheckTime, 'Connection failed!');
+					console.error("Error:", error.message);
+				});
+		});
 	}
+
+	// Initialize test connection button
+	initTestConnection();
 
 	// Enable Path Prefix input if checkbox was enabled
 	const pathPrefixCheckbox = document.getElementById("path_prefix_active");
@@ -639,6 +489,7 @@ addEventListener("DOMContentLoaded", function () {
 
 	// Bricks CSS Sync functionality
 	initBricksSyncButtons();
+	initBricksThemeAssetsSyncButtons();
 
 	function initBricksSyncButtons() {
 		const syncNowButton = document.getElementById('nbs3-sync-bricks-now');
@@ -770,6 +621,142 @@ addEventListener("DOMContentLoaded", function () {
 					if (syncNowButton) syncNowButton.disabled = false;
 					showActionStatus('An error occurred during removal.', true);
 					console.error('Bricks removal error:', error);
+				});
+			});
+		}
+	}
+
+	// Bricks Theme Assets Sync functionality
+	function initBricksThemeAssetsSyncButtons() {
+		const syncNowButton = document.getElementById('nbs3-sync-bricks-theme-assets-now');
+		const removeButton = document.getElementById('nbs3-remove-bricks-theme-assets-s3');
+		const statusText = document.getElementById('nbs3-bricks-theme-assets-status-text');
+		const actionStatus = document.getElementById('nbs3-bricks-theme-assets-action-status');
+
+		if (!syncNowButton && !removeButton) {
+			return; // Theme assets section not present
+		}
+
+		// Helper to update status display
+		function updateThemeAssetsStatus(status) {
+			if (statusText && status) {
+				statusText.textContent = `${status.synced} synced, ${status.pending} pending, ${status.total} total files`;
+			}
+		}
+
+		// Helper to show action status message
+		function showActionStatus(message, isError = false) {
+			if (actionStatus) {
+				actionStatus.textContent = message;
+				actionStatus.style.color = isError ? '#b32d2e' : '#00a32a';
+
+				// Clear after 5 seconds
+				setTimeout(() => {
+					actionStatus.textContent = '';
+				}, 5000);
+			}
+		}
+
+		// Helper to set button loading state
+		function setButtonLoading(button, isLoading) {
+			if (isLoading) {
+				button.disabled = true;
+				button.classList.add('updating-message');
+				button.setAttribute('data-original-text', button.textContent);
+				button.textContent = 'Working...';
+			} else {
+				button.disabled = false;
+				button.classList.remove('updating-message');
+				const originalText = button.getAttribute('data-original-text');
+				if (originalText) {
+					button.textContent = originalText;
+				}
+			}
+		}
+
+		// Sync Now button handler
+		if (syncNowButton) {
+			syncNowButton.addEventListener('click', function(e) {
+				e.preventDefault();
+
+				setButtonLoading(syncNowButton, true);
+				if (removeButton) removeButton.disabled = true;
+				showActionStatus('Syncing theme assets to S3...');
+
+				const data = new URLSearchParams();
+				data.append('action', 'nbs3_sync_bricks_theme_assets');
+				data.append('security_nonce', nbs3_ajax_object.bricks_theme_assets_sync_nonce);
+
+				fetch(nbs3_ajax_object.ajax_url, {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/x-www-form-urlencoded',
+					},
+					body: data
+				})
+				.then(response => response.json())
+				.then(data => {
+					setButtonLoading(syncNowButton, false);
+					if (removeButton) removeButton.disabled = false;
+
+					if (data.success) {
+						showActionStatus(data.data.message);
+						updateThemeAssetsStatus(data.data.status);
+					} else {
+						showActionStatus(data.data?.message || 'Sync failed.', true);
+					}
+				})
+				.catch(error => {
+					setButtonLoading(syncNowButton, false);
+					if (removeButton) removeButton.disabled = false;
+					showActionStatus('An error occurred during sync.', true);
+					console.error('Theme assets sync error:', error);
+				});
+			});
+		}
+
+		// Remove from S3 button handler
+		if (removeButton) {
+			removeButton.addEventListener('click', function(e) {
+				e.preventDefault();
+
+				// Confirm action
+				if (!confirm('Are you sure you want to remove all Bricks theme assets from S3? This action cannot be undone.')) {
+					return;
+				}
+
+				setButtonLoading(removeButton, true);
+				if (syncNowButton) syncNowButton.disabled = true;
+				showActionStatus('Removing theme assets from S3...');
+
+				const data = new URLSearchParams();
+				data.append('action', 'nbs3_remove_bricks_theme_assets');
+				data.append('security_nonce', nbs3_ajax_object.bricks_theme_assets_remove_nonce);
+
+				fetch(nbs3_ajax_object.ajax_url, {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/x-www-form-urlencoded',
+					},
+					body: data
+				})
+				.then(response => response.json())
+				.then(data => {
+					setButtonLoading(removeButton, false);
+					if (syncNowButton) syncNowButton.disabled = false;
+
+					if (data.success) {
+						showActionStatus(data.data.message);
+						updateThemeAssetsStatus(data.data.status);
+					} else {
+						showActionStatus(data.data?.message || 'Removal failed.', true);
+					}
+				})
+				.catch(error => {
+					setButtonLoading(removeButton, false);
+					if (syncNowButton) syncNowButton.disabled = false;
+					showActionStatus('An error occurred during removal.', true);
+					console.error('Theme assets removal error:', error);
 				});
 			});
 		}

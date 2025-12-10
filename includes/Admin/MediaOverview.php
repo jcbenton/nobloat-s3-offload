@@ -58,7 +58,7 @@ class MediaOverview
             'media_overview',
             __('Media Library Overview', 'nobloat-s3-offload'),
             function () {
-                echo '<p>' . esc_attr__('Get a comprehensive overview of all media files in your WordPress library. Easily identify any files that haven’t been offloaded to the Cloud and offload them in bulk.', 'nobloat-s3-offload') . '</p></div>';
+                echo '<p>' . esc_html__('Get a comprehensive overview of all media files in your WordPress library. Easily identify any files that haven\'t been offloaded to the Cloud and offload them in bulk.', 'nobloat-s3-offload') . '</p></div>';
             },
             'nbs3_media_overview',
             [
@@ -212,6 +212,7 @@ class MediaOverview
             $meta_key
         );
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Query is prepared above, querying postmeta for specific meta_key
         return $wpdb->get_col($query);
     }
 
@@ -257,6 +258,7 @@ class MediaOverview
                 ));
             }
 
+            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Using php://output stream for CSV generation, WP_Filesystem not applicable
             fclose($output);
             exit;
         } catch (Exception $e) {
@@ -270,13 +272,13 @@ class MediaOverview
     {
         // WP CLI Notice
         echo '<div style="background: #f0f6fc; border: 1px solid #c3d4e7; border-radius: 4px; padding: 12px; margin-bottom: 20px;">';
-        echo '<p style="margin: 0 0 8px 0;"><strong style="color: #0073aa;">💡 ' . __('Use WP CLI for Large Operations', 'nobloat-s3-offload') . '</strong></p>';
-        echo '<p style="margin: 0 0 8px 0; font-size: 13px;">' . __('For sites with hundreds or thousands of media files, our WP CLI command offers superior performance and control:', 'nobloat-s3-offload') . '</p>';
+        echo '<p style="margin: 0 0 8px 0;"><strong style="color: #0073aa;">💡 ' . esc_html__('Use WP CLI for Large Operations', 'nobloat-s3-offload') . '</strong></p>';
+        echo '<p style="margin: 0 0 8px 0; font-size: 13px;">' . esc_html__('For sites with hundreds or thousands of media files, our WP CLI command offers superior performance and control:', 'nobloat-s3-offload') . '</p>';
         echo '<p style="margin: 0 0 8px 0;"><code style="background: #fff; padding: 2px 6px; border-radius: 3px; font-family: monospace;">wp nbs3 offload</code></p>';
         echo '</div>';
 
-        echo '<p class="description"><strong>' . __('Note:', 'nobloat-s3-offload') . '</strong> ';
-        echo __('This web-based bulk offload supports up to 50 media attachments. For larger operations with hundreds or thousands of files, we recommend using WP CLI commands which provide better performance and reliability for large-scale operations.', 'nobloat-s3-offload') . '</p><br />';
+        echo '<p class="description"><strong>' . esc_html__('Note:', 'nobloat-s3-offload') . '</strong> ';
+        echo esc_html__('This web-based bulk offload supports up to 50 media attachments. For larger operations with hundreds or thousands of files, we recommend using WP CLI commands which provide better performance and reliability for large-scale operations.', 'nobloat-s3-offload') . '</p><br />';
 
         $bulk_offload_data = nbs3_get_bulk_offload_data();
         $count = nbs3_get_unoffloaded_media_items_count();
@@ -286,16 +288,17 @@ class MediaOverview
         if ($count > 0 || $is_offloading) {
             if (!$is_offloading) {
                 echo '<p>' . sprintf(
-                    _n(
+                    /* translators: %d: number of files */
+                    esc_html(_n(
                         'You have %d file still stored on your server.',
                         'You have %d files still stored on your server.',
                         $count,
                         'nobloat-s3-offload'
-                    ),
-                    $count
+                    )),
+                    intval($count)
                 ) . '</p>';
-                echo '<p class="description">' . __('Offload them to cloud storage now to free up space and enhance your website\'s performance.', 'nobloat-s3-offload') . '</p>';
-                echo '<button type="button" id="bulk-offload-button" class="button">' . __('Offload Now', 'nobloat-s3-offload') . '</button>';
+                echo '<p class="description">' . esc_html__('Offload them to cloud storage now to free up space and enhance your website\'s performance.', 'nobloat-s3-offload') . '</p>';
+                echo '<button type="button" id="bulk-offload-button" class="button">' . esc_html__('Offload Now', 'nobloat-s3-offload') . '</button>';
             }
 
             $display_style = $is_offloading ? 'block' : 'none';
@@ -312,7 +315,8 @@ class MediaOverview
             echo '<div id="progress-container" style="display: ' . esc_attr($display_style) . '; margin-top: 20px;" data-status="' . esc_attr($progress_status) . '">';
             echo '<p id="progress-title" style="font-size: 16px; font-weight: bold;">' .
                 sprintf(
-                    __('Offloading media files to cloud storage (%1$s of %2$s)', 'nobloat-s3-offload'),
+                    /* translators: %1$s: processed count span, %2$s: total count span */
+                    esc_html__('Offloading media files to cloud storage (%1$s of %2$s)', 'nobloat-s3-offload'),
                     '<span id="processed-count">' . esc_html($processed) . '</span>',
                     '<span id="total-count">' . esc_html($total) . '</span>'
                 ) .
@@ -322,13 +326,13 @@ class MediaOverview
             echo '    </div>';
             printf('    <p id="progress-text" style="margin-top: 10px; font-weight: bold;">%s</p>', esc_html($progress_text));
             if (get_option("nbs3_bulk_offload_cancelled") === false) {
-                echo '<button type="button" id="bulk-offload-cancel-button" class="button">' . __('Cancel', 'nobloat-s3-offload') . '</button>';
+                echo '<button type="button" id="bulk-offload-cancel-button" class="button">' . esc_html__('Cancel', 'nobloat-s3-offload') . '</button>';
             } else {
-                echo "<p>Canceling the bulk offload process…</p>";
+                echo '<p>' . esc_html__('Canceling the bulk offload process…', 'nobloat-s3-offload') . '</p>';
             }
             echo '</div>';
         } else {
-            echo '<p>' . __('All media files are currently stored in the cloud.', 'nobloat-s3-offload') . '</p>';
+            echo '<p>' . esc_html__('All media files are currently stored in the cloud.', 'nobloat-s3-offload') . '</p>';
         }
     }
 }

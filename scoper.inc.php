@@ -93,14 +93,30 @@ return [
 
     'patchers' => [
         static function (string $filePath, string $prefix, string $content): string {
-            // Fix AWS SDK autoloader
-            if (strpos($filePath, 'aws/aws-sdk-php/src/functions.php') !== false) {
+            // Fix AWS SDK AwsClient parseClass method - it builds exception class names dynamically
+            if (strpos($filePath, 'aws/aws-sdk-php/src/AwsClient.php') !== false) {
                 $content = str_replace(
-                    "'{$prefix}\\\\Aws\\\\",
-                    "'Aws\\\\",
+                    '"Aws\\\\{$service}\\\\Exception\\\\{$service}Exception"',
+                    '"{$prefix}\\\\Aws\\\\{$service}\\\\Exception\\\\{$service}Exception"',
+                    $content
+                );
+                $content = str_replace(
+                    '"{$prefix}\\\\Aws\\\\{$service}\\\\Exception\\\\{$service}Exception"',
+                    '"' . $prefix . '\\\\Aws\\\\{$service}\\\\Exception\\\\{$service}Exception"',
                     $content
                 );
             }
+
+            // Fix AWS SDK SignatureV4 - the ISO8601_BASIC date format gets incorrectly prefixed
+            // 'Ymd\THis\Z' is a PHP date format, not a namespace
+            if (strpos($filePath, 'aws/aws-sdk-php/src/Signature/SignatureV4.php') !== false) {
+                $content = str_replace(
+                    "'" . $prefix . "\\Ymd\\THis\\Z'",
+                    "'Ymd\\THis\\Z'",
+                    $content
+                );
+            }
+
             return $content;
         },
     ],

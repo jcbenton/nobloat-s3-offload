@@ -124,6 +124,7 @@ class CloudAttachmentUploader
                 foreach ($metadata_sizes as $size => $data) {
                     $pattern = '/\-e[0-9]+(?=\-)/';
                     if (!preg_match($pattern, $data['file'])) {
+                        // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging
                         error_log("{$data['file']} is not a valid size file name.");
                         continue;
                     }
@@ -245,6 +246,7 @@ class CloudAttachmentUploader
                             continue;
                         }
                     } else {
+                        // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging
                         error_log("NBS3: Regenerated thumbnail file not found: {$thumbnail_file}");
                     }
                 }
@@ -260,7 +262,7 @@ class CloudAttachmentUploader
             $base_file = get_attached_file($attachment_id, true);
             $file_dir = trailingslashit(dirname($base_file));
             $root_source_files = $this->getRootSourceFiles($new_metadata);
-            
+
             foreach ($root_source_files as $source_file) {
                 $source_path = $file_dir . $source_file;
                 if (file_exists($source_path)) {
@@ -270,6 +272,7 @@ class CloudAttachmentUploader
                         // Continue with other files even if one fails
                     }
                 } else {
+                    // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging
                     error_log("NBS3: Root source file not found: {$source_path}");
                 }
             }
@@ -493,6 +496,7 @@ class CloudAttachmentUploader
         $original_file = get_attached_file($attachment_id, true);
 
         if (!file_exists($original_file)) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging
             error_log("NBS3: Original file not found for deletion: $original_file");
             return false;
         }

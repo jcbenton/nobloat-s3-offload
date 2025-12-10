@@ -32,6 +32,8 @@ class GeneralSettings
         add_action('wp_ajax_nbs3_sync_bricks_now', [$this, 'sync_bricks_ajax']);
         add_action('wp_ajax_nbs3_remove_bricks_from_s3', [$this, 'remove_bricks_from_s3_ajax']);
         add_action('wp_ajax_nbs3_get_bricks_status', [$this, 'get_bricks_status_ajax']);
+        add_action('wp_ajax_nbs3_sync_bricks_theme_assets', [$this, 'sync_bricks_theme_assets_ajax']);
+        add_action('wp_ajax_nbs3_remove_bricks_theme_assets', [$this, 'remove_bricks_theme_assets_ajax']);
     }
 
     public function initialize()
@@ -57,6 +59,7 @@ class GeneralSettings
         if (nbs3_is_bricks_active()) {
             $this->add_bricks_section();
             $this->add_bricks_sync_field();
+            $this->add_bricks_theme_assets_field();
         }
     }
 
@@ -143,6 +146,20 @@ class GeneralSettings
             'bricks_integration',
             [
                 'class' => 'nbs3-field nbs3-bricks-sync',
+            ]
+        );
+    }
+
+    private function add_bricks_theme_assets_field()
+    {
+        add_settings_field(
+            'sync_bricks_theme_assets',
+            __('Bricks Theme Assets', 'nobloat-s3-offload'),
+            [$this, 'bricks_theme_assets_field'],
+            'nbs3',
+            'bricks_integration',
+            [
+                'class' => 'nbs3-field nbs3-bricks-theme-assets',
             ]
         );
     }
@@ -267,7 +284,7 @@ class GeneralSettings
         // Show warning if CDN domain not set
         if (empty($cdn_domain)) {
             echo '<div class="notice notice-warning inline" style="margin: 10px 0;">';
-            echo '<p>' . esc_html__('Note: Configure a Custom Domain (CDN) in the credentials section for URL rewriting to work.', 'nobloat-s3-offload') . '</p>';
+            echo '<p>' . esc_html__('Note: CSS files will sync to S3, but URLs will not be rewritten unless you configure a CloudFront or Custom Domain (CDN) in the S3 Connection section above.', 'nobloat-s3-offload') . '</p>';
             echo '</div>';
         }
 
@@ -276,10 +293,11 @@ class GeneralSettings
         echo '<p style="margin: 0 0 8px 0;"><strong>' . esc_html__('Status:', 'nobloat-s3-offload') . '</strong></p>';
         echo '<p style="margin: 0;" id="nbs3-bricks-status-text">';
         printf(
+            /* translators: %1$d: number synced, %2$d: number pending, %3$d: total number */
             esc_html__('%1$d synced, %2$d pending, %3$d total', 'nobloat-s3-offload'),
-            $status['synced'],
-            $status['pending'],
-            $status['total']
+            intval($status['synced']),
+            intval($status['pending']),
+            intval($status['total'])
         );
         echo '</p>';
         echo '</div>';
@@ -294,6 +312,57 @@ class GeneralSettings
         // WP-CLI info
         echo '<div style="margin-top: 15px;">';
         echo '<p class="description">' . esc_html__('For large operations, use WP-CLI:', 'nobloat-s3-offload') . ' <code>wp nbs3 sync-bricks</code></p>';
+        echo '</div>';
+    }
+
+    public function bricks_theme_assets_field()
+    {
+        $options = get_option('nbs3_settings');
+        $sync_theme_assets = isset($options['sync_bricks_theme_assets']) ? intval($options['sync_bricks_theme_assets']) : 0;
+        $cdn_domain = nbs3_get_credential('domain');
+
+        // Get status
+        $s3Provider = new S3Provider();
+        $service = new \NBS3\Services\BricksThemeAssetsSyncService($s3Provider);
+        $status = $service->getStatus();
+
+        echo '<div class="nbs3-checkbox-option">';
+        echo '<input type="checkbox" id="sync_bricks_theme_assets" name="nbs3_settings[sync_bricks_theme_assets]" value="1" ' . checked(1, $sync_theme_assets, false) . '/>';
+        echo '<label for="sync_bricks_theme_assets">' . esc_html__('Sync Bricks Theme Assets to S3', 'nobloat-s3-offload') . '</label>';
+        echo '<p class="description">' . esc_html__('Upload Bricks theme static assets (CSS, JS, fonts) to S3. Re-syncs automatically when any plugin or theme is updated.', 'nobloat-s3-offload') . '</p>';
+        echo '</div>';
+
+        // Show warning if CDN domain not set
+        if (empty($cdn_domain)) {
+            echo '<div class="notice notice-warning inline" style="margin: 10px 0;">';
+            echo '<p>' . esc_html__('Note: Theme assets will sync to S3, but URLs will not be rewritten unless you configure a CloudFront or Custom Domain (CDN) in the S3 Connection section above.', 'nobloat-s3-offload') . '</p>';
+            echo '</div>';
+        }
+
+        // Status display
+        echo '<div class="nbs3-bricks-theme-assets-status" style="margin-top: 15px; padding: 12px; background: #f0f0f1; border-radius: 4px;">';
+        echo '<p style="margin: 0 0 8px 0;"><strong>' . esc_html__('Status:', 'nobloat-s3-offload') . '</strong></p>';
+        echo '<p style="margin: 0;" id="nbs3-bricks-theme-assets-status-text">';
+        printf(
+            /* translators: %1$d: number synced, %2$d: number pending, %3$d: total number of files */
+            esc_html__('%1$d synced, %2$d pending, %3$d total files', 'nobloat-s3-offload'),
+            intval($status['synced']),
+            intval($status['pending']),
+            intval($status['total'])
+        );
+        echo '</p>';
+        echo '</div>';
+
+        // Action buttons
+        echo '<div class="nbs3-bricks-theme-assets-actions" style="margin-top: 15px;">';
+        echo '<button type="button" class="button" id="nbs3-sync-bricks-theme-assets-now">' . esc_html__('Sync Now', 'nobloat-s3-offload') . '</button> ';
+        echo '<button type="button" class="button" id="nbs3-remove-bricks-theme-assets-s3" style="color: #b32d2e;">' . esc_html__('Remove from S3', 'nobloat-s3-offload') . '</button>';
+        echo '<span id="nbs3-bricks-theme-assets-action-status" style="margin-left: 10px;"></span>';
+        echo '</div>';
+
+        // Info about auto-sync
+        echo '<div style="margin-top: 15px;">';
+        echo '<p class="description">' . esc_html__('Theme assets auto-sync whenever any plugin or theme is updated.', 'nobloat-s3-offload') . '</p>';
         echo '</div>';
     }
 
@@ -387,6 +456,7 @@ class GeneralSettings
             'auto_offload_uploads' => 1,
             's3_object_acl' => 'none',
             'sync_bricks_css' => 0,
+            'sync_bricks_theme_assets' => 0,
         ];
 
         $sanitized['retention_policy'] = isset($options['retention_policy']) ? intval($options['retention_policy']) : 0;
@@ -415,6 +485,9 @@ class GeneralSettings
                 wp_schedule_single_event(time(), 'nbs3_bricks_initial_sync');
             }
         }
+
+        // Bricks theme assets sync setting
+        $sanitized['sync_bricks_theme_assets'] = isset($options['sync_bricks_theme_assets']) && (int) $options['sync_bricks_theme_assets'] === 1 ? 1 : 0;
 
         add_settings_error(
             'nbs3_messages',
@@ -471,16 +544,13 @@ class GeneralSettings
 
     public function add_settings_page()
     {
-        $svg_icon = '<svg width="358" height="258" viewBox="0 0 358 258" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="358" height="258" rx="25" fill="#A7AAAD"/><text x="179" y="160" text-anchor="middle" fill="white" font-size="120" font-weight="bold">S3</text></svg>';
-        $icon_base64 = 'data:image/svg+xml;base64,' . base64_encode($svg_icon);
-
         add_menu_page(
             __('Nobloat S3 Offload', 'nobloat-s3-offload'),
             __('S3 Offload', 'nobloat-s3-offload'),
             'manage_options',
             'nbs3',
             [$this, 'general_settings_page_view'],
-            $icon_base64,
+            'dashicons-cloud',
             100
         );
 
@@ -492,6 +562,26 @@ class GeneralSettings
             'nbs3',
             [$this, 'general_settings_page_view']
         );
+
+        // Documentation is added with priority 99 to ensure it appears last
+        add_action('admin_menu', [$this, 'add_documentation_submenu'], 99);
+    }
+
+    public function add_documentation_submenu()
+    {
+        add_submenu_page(
+            'nbs3',
+            __('Documentation', 'nobloat-s3-offload'),
+            __('Documentation', 'nobloat-s3-offload'),
+            'manage_options',
+            'nbs3_documentation',
+            [$this, 'documentation_page_view']
+        );
+    }
+
+    public function documentation_page_view()
+    {
+        nbs3_get_view('admin/documentation');
     }
 
     public function general_settings_page_view()
@@ -515,6 +605,8 @@ class GeneralSettings
                 'bricks_sync_nonce' => wp_create_nonce('nbs3_bricks_sync'),
                 'bricks_remove_nonce' => wp_create_nonce('nbs3_bricks_remove'),
                 'bricks_status_nonce' => wp_create_nonce('nbs3_bricks_status'),
+                'bricks_theme_assets_sync_nonce' => wp_create_nonce('nbs3_bricks_theme_assets_sync'),
+                'bricks_theme_assets_remove_nonce' => wp_create_nonce('nbs3_bricks_theme_assets_remove'),
             ]);
         }
 
@@ -564,26 +656,29 @@ class GeneralSettings
                 $response_data['message'] = __('Connection failed!', 'nobloat-s3-offload');
                 wp_send_json_error($response_data, 401);
             }
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging for connection failures
             error_log('NBS3 Connection Error: ' . $e->getMessage());
             update_option('nbs3_last_connection_check', $current_time);
 
-            // Provide user-safe error messages without exposing sensitive details
-            $safe_message = __('Failed to establish a connection to your S3 bucket.', 'nobloat-s3-offload');
             $error_msg = $e->getMessage();
+            $safe_message = '';
 
             if (strpos($error_msg, 'InvalidAccessKeyId') !== false) {
-                $safe_message .= ' ' . __('Please check your Access Key ID.', 'nobloat-s3-offload');
+                $safe_message = __('Invalid Access Key ID. Please check your credentials.', 'nobloat-s3-offload');
             } elseif (strpos($error_msg, 'SignatureDoesNotMatch') !== false) {
-                $safe_message .= ' ' . __('Please check your Secret Access Key.', 'nobloat-s3-offload');
+                $safe_message = __('Invalid Secret Access Key. Please check your credentials.', 'nobloat-s3-offload');
             } elseif (strpos($error_msg, 'NoSuchBucket') !== false) {
-                $safe_message .= ' ' . __('The specified bucket was not found.', 'nobloat-s3-offload');
+                $safe_message = __('Bucket not found. Please check the bucket name.', 'nobloat-s3-offload');
             } elseif (strpos($error_msg, 'AccessDenied') !== false) {
-                $safe_message .= ' ' . __('Access denied. Please check your credentials and bucket permissions.', 'nobloat-s3-offload');
-            } elseif (strpos($error_msg, 'PermanentRedirect') !== false) {
-                $safe_message .= ' ' . __('Please check your region and endpoint settings.', 'nobloat-s3-offload');
+                $safe_message = __('Access denied. Please check your credentials and bucket permissions.', 'nobloat-s3-offload');
+            } elseif (strpos($error_msg, 'PermanentRedirect') !== false || strpos($error_msg, 'region') !== false) {
+                $safe_message = __('Region mismatch. Please check your region setting matches the bucket location.', 'nobloat-s3-offload');
+            } elseif (strpos($error_msg, 'Could not resolve host') !== false || strpos($error_msg, 'cURL error') !== false) {
+                $safe_message = __('Could not connect to S3. Please check your endpoint and region settings.', 'nobloat-s3-offload');
             } else {
-                $safe_message .= ' ' . __('Check your server error logs for details.', 'nobloat-s3-offload');
+                // Show a truncated version of the actual error for debugging (sanitized)
+                $safe_message = __('Connection failed: ', 'nobloat-s3-offload') . wp_kses(substr($error_msg, 0, 300), []);
             }
 
             $response_data['message'] = $safe_message;
@@ -606,12 +701,14 @@ class GeneralSettings
         }
 
         // Validate input structure
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in verify_security_nonce() above
         if (!isset($_POST['nbs3_settings']) || !is_array($_POST['nbs3_settings'])) {
             wp_send_json_error([
                 'message' => __('Invalid settings data format.', 'nobloat-s3-offload')
             ]);
         }
 
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce verified above, data sanitized by $this->sanitize()
         $settings = wp_unslash($_POST['nbs3_settings']);
 
         // Additional validation after unslashing
@@ -643,6 +740,7 @@ class GeneralSettings
             ]);
         }
 
+        // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce verified above, data sanitized by $this->sanitize_credentials()
         $credentials = isset($_POST['nbs3_credentials']) ? wp_unslash($_POST['nbs3_credentials']) : [];
         $sanitized_credentials = $this->sanitize_credentials($credentials);
         update_option('nbs3_credentials', $sanitized_credentials);
@@ -689,18 +787,21 @@ class GeneralSettings
 
             $status = nbs3_get_bricks_sync_status();
 
+            $message = sprintf(
+                /* translators: %1$d: number of files uploaded, %2$d: number of files deleted */
+                __('Sync completed. %1$d uploaded, %2$d deleted.', 'nobloat-s3-offload'),
+                $result['uploaded'],
+                $result['deleted']
+            );
             wp_send_json_success([
-                'message' => sprintf(
-                    __('Sync completed. %d uploaded, %d deleted.', 'nobloat-s3-offload'),
-                    $result['uploaded'],
-                    $result['deleted']
-                ),
+                'message' => $message,
                 'uploaded' => $result['uploaded'],
                 'deleted' => $result['deleted'],
                 'errors' => $result['errors'],
                 'status' => $status,
             ]);
         } catch (\Exception $e) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging for sync failures
             error_log('NBS3 Bricks Sync Error: ' . $e->getMessage());
             wp_send_json_error([
                 'message' => __('Sync failed. Check your server error logs for details.', 'nobloat-s3-offload')
@@ -745,16 +846,19 @@ class GeneralSettings
 
             $status = nbs3_get_bricks_sync_status();
 
+            $message = sprintf(
+                /* translators: %d: number of files deleted */
+                __('Removed %d files from S3.', 'nobloat-s3-offload'),
+                $result['deleted']
+            );
             wp_send_json_success([
-                'message' => sprintf(
-                    __('Removed %d files from S3.', 'nobloat-s3-offload'),
-                    $result['deleted']
-                ),
+                'message' => $message,
                 'deleted' => $result['deleted'],
                 'errors' => $result['errors'],
                 'status' => $status,
             ]);
         } catch (\Exception $e) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging for debugging S3 sync failures
             error_log('NBS3 Bricks Remove Error: ' . $e->getMessage());
             wp_send_json_error([
                 'message' => __('Removal failed. Check your server error logs for details.', 'nobloat-s3-offload')
@@ -781,19 +885,138 @@ class GeneralSettings
 
         $status = nbs3_get_bricks_sync_status();
 
+        $status_text = sprintf(
+            /* translators: %1$d: number synced, %2$d: number pending, %3$d: total number */
+            __('%1$d synced, %2$d pending, %3$d total', 'nobloat-s3-offload'),
+            $status['synced'],
+            $status['pending'],
+            $status['total']
+        );
         wp_send_json_success([
             'status' => $status,
-            'status_text' => sprintf(
-                __('%1$d synced, %2$d pending, %3$d total', 'nobloat-s3-offload'),
-                $status['synced'],
-                $status['pending'],
-                $status['total']
-            ),
+            'status_text' => $status_text,
         ]);
+    }
+
+    /**
+     * AJAX handler for syncing Bricks theme assets to S3.
+     */
+    public function sync_bricks_theme_assets_ajax()
+    {
+        if (!$this->verify_security_nonce('security_nonce', 'nbs3_bricks_theme_assets_sync')) {
+            wp_send_json_error([
+                'message' => __('Invalid security token!', 'nobloat-s3-offload')
+            ]);
+        }
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error([
+                'message' => __('You do not have permission to perform this action.', 'nobloat-s3-offload')
+            ]);
+        }
+
+        if (!nbs3_is_bricks_active()) {
+            wp_send_json_error([
+                'message' => __('Bricks Builder is not active.', 'nobloat-s3-offload')
+            ]);
+        }
+
+        $bucket = nbs3_get_credential('bucket');
+        if (empty($bucket)) {
+            wp_send_json_error([
+                'message' => __('Please configure your S3 credentials first.', 'nobloat-s3-offload')
+            ]);
+        }
+
+        try {
+            $s3Provider = new S3Provider();
+            $syncService = new \NBS3\Services\BricksThemeAssetsSyncService($s3Provider);
+            $result = $syncService->fullSync();
+            $status = $syncService->getStatus();
+
+            $message = sprintf(
+                /* translators: %1$d: files uploaded, %2$d: files skipped, %3$d: files deleted */
+                __('Sync completed. %1$d uploaded, %2$d skipped, %3$d deleted.', 'nobloat-s3-offload'),
+                $result['uploaded'],
+                $result['skipped'],
+                $result['deleted']
+            );
+            wp_send_json_success([
+                'message' => $message,
+                'uploaded' => $result['uploaded'],
+                'skipped' => $result['skipped'],
+                'deleted' => $result['deleted'],
+                'errors' => $result['errors'],
+                'status' => $status,
+            ]);
+        } catch (\Exception $e) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging for sync failures
+            error_log('NBS3 Bricks Theme Assets Sync Error: ' . $e->getMessage());
+            wp_send_json_error([
+                'message' => __('Sync failed. Check your server error logs for details.', 'nobloat-s3-offload')
+            ]);
+        }
+    }
+
+    /**
+     * AJAX handler for removing Bricks theme assets from S3.
+     */
+    public function remove_bricks_theme_assets_ajax()
+    {
+        if (!$this->verify_security_nonce('security_nonce', 'nbs3_bricks_theme_assets_remove')) {
+            wp_send_json_error([
+                'message' => __('Invalid security token!', 'nobloat-s3-offload')
+            ]);
+        }
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error([
+                'message' => __('You do not have permission to perform this action.', 'nobloat-s3-offload')
+            ]);
+        }
+
+        if (!nbs3_is_bricks_active()) {
+            wp_send_json_error([
+                'message' => __('Bricks Builder is not active.', 'nobloat-s3-offload')
+            ]);
+        }
+
+        $bucket = nbs3_get_credential('bucket');
+        if (empty($bucket)) {
+            wp_send_json_error([
+                'message' => __('Please configure your S3 credentials first.', 'nobloat-s3-offload')
+            ]);
+        }
+
+        try {
+            $s3Provider = new S3Provider();
+            $syncService = new \NBS3\Services\BricksThemeAssetsSyncService($s3Provider);
+            $result = $syncService->removeAllFromS3();
+            $status = $syncService->getStatus();
+
+            $message = sprintf(
+                /* translators: %d: number of files deleted */
+                __('Removed %d files from S3.', 'nobloat-s3-offload'),
+                $result['deleted']
+            );
+            wp_send_json_success([
+                'message' => $message,
+                'deleted' => $result['deleted'],
+                'errors' => $result['errors'],
+                'status' => $status,
+            ]);
+        } catch (\Exception $e) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging for debugging S3 sync failures
+            error_log('NBS3 Bricks Theme Assets Remove Error: ' . $e->getMessage());
+            wp_send_json_error([
+                'message' => __('Removal failed. Check your server error logs for details.', 'nobloat-s3-offload')
+            ]);
+        }
     }
 
     private function verify_security_nonce($name, $action)
     {
+        // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- Nonce values don't need unslashing
         $security_nonce = isset($_POST[$name]) ? sanitize_text_field($_POST[$name]) : '';
         return wp_verify_nonce($security_nonce, $action);
     }

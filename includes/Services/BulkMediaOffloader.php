@@ -27,6 +27,7 @@ class BulkMediaOffloader extends WP_Background_Process
 
             return false;
         } catch (\Exception $e) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging for bulk offload failures
             error_log("NBS3 Bulk Offload Error (ID: {$item}): " . $e->getMessage());
 
             // Mark as processed with error

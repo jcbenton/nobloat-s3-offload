@@ -47,6 +47,7 @@ class AttachmentUploadObserver implements ObserverInterface
         if (!$this->cloudAttachmentUploader->uploadAttachment($attachment_id)) {
             // Log the failure but do NOT delete the attachment
             // The error is already logged by CloudAttachmentUploader
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging
             error_log(sprintf(
                 'NBS3: Failed to offload attachment ID %d. Attachment preserved locally.',
                 $attachment_id

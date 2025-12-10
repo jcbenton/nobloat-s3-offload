@@ -50,6 +50,7 @@ class BricksCssSyncObserver implements ObserverInterface
         $result = $syncService->syncFile($file_name);
 
         if ($result) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional debug logging for sync operations
             error_log("NBS3: Synced Bricks CSS file: {$file_name} (type: {$type})");
         }
     }

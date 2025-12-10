@@ -80,6 +80,7 @@ class AttachmentDeleteObserver  implements ObserverInterface
             "The file remains in the cloud storage and locally due to an error. " .
             "Please try again or contact support if the issue persists.";
 
+        // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging for deletion failures
         error_log($log_message);
 
         // Add a notice to the dashboard

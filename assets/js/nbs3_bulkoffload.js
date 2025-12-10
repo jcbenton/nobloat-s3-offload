@@ -160,6 +160,7 @@
 		}
 		if (elements.startButton) {
 			elements.startButton.disabled = false;
+			elements.startButton.style.display = "none";
 		}
 		elements.cancelButton.disabled = true;
 		elements.progressBarContainer.style.display = "none";

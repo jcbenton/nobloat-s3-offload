@@ -80,13 +80,15 @@ class OffloadStatusObserver implements ObserverInterface
         }
 
         if ($this->has_errors($post_id)) {
-            # get url for this settings page: nbs3_media_overview
+            // get url for this settings page: nbs3_media_overview
             $media_overview_page = admin_url('admin.php?page=nbs3_media_overview');
+            $status = sprintf(
+                /* translators: %s: URL to Media Overview page */
+                __('Offload failed - Action required. View details in <a href="%s">Media Overview</a>', 'nobloat-s3-offload'),
+                esc_url($media_overview_page)
+            );
             return [
-                'status' => sprintf(
-                    __('Offload failed - Action required. View details in <a href="%s">Media Overview</a>', 'nobloat-s3-offload'),
-                    esc_url($media_overview_page)
-                ),
+                'status' => $status,
                 'color' => '#D32F2F',
             ];
         }
@@ -110,14 +112,17 @@ class OffloadStatusObserver implements ObserverInterface
         $provider = get_post_meta($post_id, self::META_PROVIDER, true);
         $bucket = get_post_meta($post_id, self::META_BUCKET, true);
 
+        /* translators: %s: cloud provider name (e.g., S3) */
         $status = sprintf(__('Offloaded to %s', 'nobloat-s3-offload'), $provider);
 
         if ($bucket) {
+            /* translators: %s: bucket name */
             $status .= sprintf(__(' (Bucket: %s)', 'nobloat-s3-offload'), $bucket);
         }
 
         if ($offloaded_at) {
             $formatted_date = date_i18n(get_option('date_format') . ' ' . get_option('time_format'), $offloaded_at);
+            /* translators: %s: formatted date and time */
             $status .= sprintf(__(' on %s', 'nobloat-s3-offload'), $formatted_date);
         }
 

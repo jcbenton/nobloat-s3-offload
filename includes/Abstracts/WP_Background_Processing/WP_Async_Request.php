@@ -113,6 +113,7 @@ abstract class WP_Async_Request
          *
          * @param array $url
          */
+        // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.DynamicHooknameFound -- Third-party library, identifier is prefixed
         return apply_filters($this->identifier . '_query_args', $args);
     }
 
@@ -134,6 +135,7 @@ abstract class WP_Async_Request
          *
          * @param string $url
          */
+        // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.DynamicHooknameFound -- Third-party library, identifier is prefixed
         return apply_filters($this->identifier . '_query_url', $url);
     }
 
@@ -153,6 +155,7 @@ abstract class WP_Async_Request
             'blocking'  => false,
             'body'      => $this->data,
             'cookies'   => $_COOKIE, // Passing cookies ensures request is performed as initiating user.
+            // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WordPress core filter
             'sslverify' => apply_filters('https_local_ssl_verify', false), // Local requests, fine to pass false.
         );
 
@@ -161,6 +164,7 @@ abstract class WP_Async_Request
          *
          * @param array $args
          */
+        // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.DynamicHooknameFound -- Third-party library, identifier is prefixed
         return apply_filters($this->identifier . '_post_args', $args);
     }
 
@@ -197,6 +201,7 @@ abstract class WP_Async_Request
          *
          * @return bool
          */
+        // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.DynamicHooknameFound -- Third-party library, identifier is prefixed
         if (apply_filters($this->identifier . '_wp_die', true)) {
             wp_die();
         }

@@ -3,14 +3,13 @@
  * Plugin Name:       Nobloat S3 Offload
  * Plugin URI:        https://github.com/jbenton/nobloat-s3-offload
  * Description:       Lightweight S3 media offloader for WordPress. Offload media to any S3-compatible storage.
- * Version:           1.0.0
+ * Version:           1.0.5
  * Requires at least: 5.6
  * Requires PHP:      8.1
  * Author:            Starter Fork
  * License:           GPL v2 or later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       nobloat-s3-offload
- * Domain Path:       /languages
  */
 
 if (!defined('ABSPATH')) {
@@ -156,6 +155,13 @@ if (!class_exists('NBS3')) {
             // Register the URL rewrite observer (rewrites CSS URLs to CDN)
             $url_rewrite_observer = new \NBS3\Observers\BricksCssUrlRewriteObserver();
             $url_rewrite_observer->register();
+
+            // Register the theme assets sync observer (syncs on plugin/theme updates)
+            $theme_assets_observer = new \NBS3\Observers\BricksThemeAssetsSyncObserver($s3_provider);
+            $theme_assets_observer->register();
+
+            // Register the cron hook for async theme assets sync
+            \NBS3\Observers\BricksThemeAssetsSyncObserver::registerCronHook($s3_provider);
         }
 
         private function register_cron_schedules()
@@ -210,6 +216,7 @@ if (!class_exists('NBS3')) {
                 $result = $sync_service->fullSync();
 
                 if ($result['uploaded'] > 0 || $result['deleted'] > 0) {
+                    // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional logging for cron sync results
                     error_log(sprintf(
                         'NBS3 Bricks Cron: Synced %d files, deleted %d files, %d errors',
                         $result['uploaded'],
@@ -218,6 +225,7 @@ if (!class_exists('NBS3')) {
                     ));
                 }
             } catch (\Exception $e) {
+                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging
                 error_log('NBS3 Bricks Cron Error: ' . $e->getMessage());
             }
         }
@@ -232,13 +240,14 @@ if (!class_exists('NBS3')) {
 
         private function include_files()
         {
-            include_once NBS3_PATH . 'utility-functions.php';
+            include_once NBS3_PATH . 'includes/utility-functions.php';
         }
 
         private function register_cli_commands()
         {
             if (defined('WP_CLI') && WP_CLI) {
                 WP_CLI::add_command('nbs3 offload', 'NBS3\\CLI\\OffloadCommand');
+                WP_CLI::add_command('nbs3 revert', 'NBS3\\CLI\\RevertCommand');
                 WP_CLI::add_command('nbs3 sync-bricks', 'NBS3\\CLI\\BricksSyncCommand');
             }
         }
@@ -277,6 +286,7 @@ if (!class_exists('NBS3')) {
                         remove_filter('cron_schedules', array($bulk_offload_handler, 'add_cron_interval'));
                     }
                 } catch (\Exception $e) {
+                    // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging
                     error_log('NBS3: Error during deactivation: ' . $e->getMessage());
                 }
             }
@@ -285,6 +295,7 @@ if (!class_exists('NBS3')) {
         public function define($name, $value = true)
         {
             if (!defined($name)) {
+                // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.VariableConstantNameFound -- $name is a method parameter containing prefixed constant names
                 define($name, $value);
             }
         }

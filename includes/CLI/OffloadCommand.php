@@ -196,6 +196,7 @@ class OffloadCommand
                 ORDER BY p.post_date ASC";
 
             if ($limit > 0) {
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- Base query is safe, only LIMIT is parameterized
                 $query = $wpdb->prepare($query . " LIMIT %d", $limit);
             }
         } else {
@@ -206,10 +207,12 @@ class OffloadCommand
                 ORDER BY p.post_date ASC";
 
             if ($limit > 0) {
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- Base query is safe, only LIMIT is parameterized
                 $query = $wpdb->prepare($query . " LIMIT %d", $limit);
             }
         }
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Complex JOIN query for CLI operations
         return $wpdb->get_col($query);
     }
 

@@ -27,8 +27,9 @@ class BricksCssSyncService
         // Security: Strip any directory components to prevent path traversal
         $file_name = basename($file_name);
 
-        // Security: Validate filename format (alphanumeric, dash, underscore, dot)
-        if (!preg_match('/^[a-zA-Z0-9._-]+\.css$/', $file_name)) {
+        // Security: Validate filename format (alphanumeric, dash, underscore, dot, parentheses)
+        if (!preg_match('/^[a-zA-Z0-9._()-]+\.css$/', $file_name)) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Security logging
             error_log("NBS3: Invalid Bricks CSS filename rejected: {$file_name}");
             return false;
         }
@@ -40,11 +41,13 @@ class BricksCssSyncService
         $expected_base = realpath($this->localPath);
 
         if ($real_path === false || $expected_base === false || strpos($real_path, $expected_base) !== 0) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Security logging
             error_log("NBS3: Path traversal attempt detected or file not found: {$file_name}");
             return false;
         }
 
         if (!file_exists($local_file)) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging
             error_log("NBS3: Bricks CSS file not found: {$local_file}");
             return false;
         }
@@ -57,6 +60,7 @@ class BricksCssSyncService
             return true;
         }
 
+        // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging
         error_log("NBS3: Failed to sync Bricks CSS file: {$file_name}");
         return false;
     }
@@ -112,7 +116,8 @@ class BricksCssSyncService
         $file_name = basename($file_name);
 
         // Security: Validate filename format
-        if (!preg_match('/^[a-zA-Z0-9._-]+\.css$/', $file_name)) {
+        if (!preg_match('/^[a-zA-Z0-9._()-]+\.css$/', $file_name)) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Security logging
             error_log("NBS3: Invalid filename rejected for S3 deletion: {$file_name}");
             return false;
         }
@@ -127,6 +132,7 @@ class BricksCssSyncService
             $this->unmarkFileSynced($file_name);
             return true;
         } catch (\Exception $e) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging
             error_log("NBS3: Failed to delete Bricks CSS from S3: {$file_name}");
             return false;
         }
@@ -175,6 +181,7 @@ class BricksCssSyncService
         $actual_path = realpath($this->localPath);
 
         if ($actual_path === false || $expected_base === false || strpos($actual_path, $expected_base) !== 0) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Security logging
             error_log("NBS3: Invalid Bricks CSS path detected: {$this->localPath}");
             return $files;
         }
@@ -191,7 +198,7 @@ class BricksCssSyncService
                 $filename = $fileinfo->getFilename();
 
                 // Only include valid CSS files
-                if (!preg_match('/^[a-zA-Z0-9._-]+\.css$/', $filename)) {
+                if (!preg_match('/^[a-zA-Z0-9._()-]+\.css$/', $filename)) {
                     continue;
                 }
 
@@ -203,6 +210,7 @@ class BricksCssSyncService
                 $files[$filename] = $fileinfo->getMTime();
             }
         } catch (\Exception $e) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging
             error_log("NBS3: Error scanning Bricks CSS directory: " . $e->getMessage());
             return $files;
         }
@@ -252,7 +260,7 @@ class BricksCssSyncService
         $file_name = basename($file_name);
 
         // Security: Validate filename format
-        if (!preg_match('/^[a-zA-Z0-9._-]+\.css$/', $file_name)) {
+        if (!preg_match('/^[a-zA-Z0-9._()-]+\.css$/', $file_name)) {
             return false;
         }
 

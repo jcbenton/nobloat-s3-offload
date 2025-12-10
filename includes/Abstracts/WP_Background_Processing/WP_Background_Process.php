@@ -234,6 +234,7 @@ abstract class WP_Background_Process extends WP_Async_Request
      */
     protected function cancelled()
     {
+        // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.DynamicHooknameFound -- Third-party library, identifier is prefixed
         do_action($this->identifier . '_cancelled');
     }
 
@@ -262,6 +263,7 @@ abstract class WP_Background_Process extends WP_Async_Request
      */
     protected function paused()
     {
+        // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.DynamicHooknameFound -- Third-party library, identifier is prefixed
         do_action($this->identifier . '_paused');
     }
 
@@ -282,6 +284,7 @@ abstract class WP_Background_Process extends WP_Async_Request
      */
     protected function resumed()
     {
+        // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.DynamicHooknameFound -- Third-party library, identifier is prefixed
         do_action($this->identifier . '_resumed');
     }
 
@@ -429,6 +432,7 @@ abstract class WP_Background_Process extends WP_Async_Request
         $this->start_time = time(); // Set start time of current process.
 
         $lock_duration = (property_exists($this, 'queue_lock_time')) ? $this->queue_lock_time : 60; // 1 minute
+        // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.DynamicHooknameFound -- Third-party library, identifier is prefixed
         $lock_duration = apply_filters($this->identifier . '_queue_lock_time', $lock_duration);
 
         set_site_transient($this->identifier . '_process_lock', microtime(), $lock_duration);
@@ -508,7 +512,8 @@ abstract class WP_Background_Process extends WP_Async_Request
             $args[] = $limit;
         }
 
-        $items = $wpdb->get_results($wpdb->prepare($sql, $args)); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Third-party library, table/column names are hardcoded WordPress table references
+        $items = $wpdb->get_results($wpdb->prepare($sql, $args));
 
         $batches = array();
 
@@ -545,6 +550,7 @@ abstract class WP_Background_Process extends WP_Async_Request
          *
          * @param int $seconds
          */
+        // phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.DynamicHooknameFound -- Third-party library, identifiers are prefixed
         $throttle_seconds = max(
             0,
             apply_filters(
@@ -555,6 +561,7 @@ abstract class WP_Background_Process extends WP_Async_Request
                 )
             )
         );
+        // phpcs:enable WordPress.NamingConventions.PrefixAllGlobals.DynamicHooknameFound
 
         do {
             $batch = $this->get_batch();
@@ -618,6 +625,7 @@ abstract class WP_Background_Process extends WP_Async_Request
             $return = true;
         }
 
+        // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.DynamicHooknameFound -- Third-party library, identifier is prefixed
         return apply_filters($this->identifier . '_memory_exceeded', $return);
     }
 
@@ -653,6 +661,7 @@ abstract class WP_Background_Process extends WP_Async_Request
      */
     protected function time_exceeded()
     {
+        // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.DynamicHooknameFound -- Third-party library, identifier is prefixed
         $finish = $this->start_time + apply_filters($this->identifier . '_default_time_limit', 20); // 20 seconds
         $return = false;
 
@@ -660,6 +669,7 @@ abstract class WP_Background_Process extends WP_Async_Request
             $return = true;
         }
 
+        // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.DynamicHooknameFound -- Third-party library, identifier is prefixed
         return apply_filters($this->identifier . '_time_exceeded', $return);
     }
 
@@ -684,6 +694,7 @@ abstract class WP_Background_Process extends WP_Async_Request
      */
     protected function completed()
     {
+        // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.DynamicHooknameFound -- Third-party library, identifier is prefixed
         do_action($this->identifier . '_completed');
     }
 
@@ -702,6 +713,7 @@ abstract class WP_Background_Process extends WP_Async_Request
             $interval = $this->cron_interval;
         }
 
+        // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.DynamicHooknameFound -- Third-party library, identifier is prefixed
         $interval = apply_filters($this->cron_interval_identifier, $interval);
 
         return is_int($interval) && 0 < $interval ? $interval : 5;
@@ -721,9 +733,10 @@ abstract class WP_Background_Process extends WP_Async_Request
         $interval = $this->get_cron_interval();
 
         if (1 === $interval) {
-            $display = __('Every Minute');
+            $display = __('Every Minute', 'nobloat-s3-offload');
         } else {
-            $display = sprintf(__('Every %d Minutes'), $interval);
+            /* translators: %d: number of minutes */
+            $display = sprintf(__('Every %d Minutes', 'nobloat-s3-offload'), $interval);
         }
 
         // Adds an "Every NNN Minute(s)" schedule to the existing cron schedules.

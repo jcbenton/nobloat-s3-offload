@@ -76,6 +76,7 @@ class GetAttachedFileObserver implements ObserverInterface
 
         $tmp = download_url($remote_url, 30);
         if (is_wp_error($tmp)) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging
             error_log('NBS3 - GetAttachedFileObserver - Error downloading file: ' . $tmp->get_error_message());
             return $file;
         }

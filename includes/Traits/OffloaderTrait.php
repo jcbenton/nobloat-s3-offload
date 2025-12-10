@@ -32,9 +32,9 @@ trait OffloaderTrait
         }
 
         if (!nbs3_is_media_organized_by_year_month()) {
-            $new_version = date("YmdHis");
+            $new_version = gmdate('YmdHis');
         } else {
-            $new_version = date("dHis");
+            $new_version = gmdate('dHis');
         }
 
         update_post_meta($attachment_id, 'nbs3_object_version', $new_version);

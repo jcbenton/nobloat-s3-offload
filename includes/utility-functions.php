@@ -63,11 +63,13 @@ if (!function_exists('nbs3_is_settings_page')) {
             return false;
         }
 
-        $current_page = isset($_GET['page']) ? sanitize_text_field($_GET['page']) : '';
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- This is a page check for admin menu, not form processing
+        $current_page = isset($_GET['page']) ? sanitize_text_field(wp_unslash($_GET['page'])) : '';
 
         $plugin_pages = [
             'general' => 'nbs3',
-            'media-overview' => 'nbs3_media_overview'
+            'media-overview' => 'nbs3_media_overview',
+            'documentation' => 'nbs3_documentation'
         ];
 
         if (!empty($page_name)) {
@@ -96,6 +98,13 @@ if (!function_exists('nbs3_get_bulk_offload_data')) {
             'oversized_skipped' => 0
         );
 
+        // Try transient first (real-time progress data from background process)
+        $transient_data = get_transient('nbs3_bulk_offload_progress');
+        if (false !== $transient_data && is_array($transient_data)) {
+            return array_merge($defaults, $transient_data);
+        }
+
+        // Fallback to option (persistent data)
         $stored_data = get_option('nbs3_bulk_offload_data', array());
 
         return array_merge($defaults, $stored_data);
@@ -136,6 +145,10 @@ if (!function_exists('nbs3_update_bulk_offload_data')) {
             $final_data['last_update'] = (int) $filtered_new_data['last_update'];
         }
 
+        // Set transient for real-time progress tracking (expires in 1 hour)
+        set_transient('nbs3_bulk_offload_progress', $final_data, HOUR_IN_SECONDS);
+
+        // Also update persistent option
         update_option('nbs3_bulk_offload_data', $final_data);
         update_option('nbs3_bulk_offload_last_update', $final_data['last_update']);
 
@@ -197,6 +210,7 @@ if (!function_exists('nbs3_sanitize_path')) {
 
         // Final validation - ensure no dangerous patterns remain
         if (preg_match('/\.\./', $path)) {
+            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Security logging for path traversal attempts
             error_log("NBS3 Security: Dangerous path pattern detected and rejected: {$path}");
             return '';
         }
@@ -211,6 +225,7 @@ if (!function_exists('nbs3_sanitize_path')) {
 if (!function_exists('nbs3_clear_bulk_offload_data')) {
     function nbs3_clear_bulk_offload_data(): void
     {
+        delete_transient('nbs3_bulk_offload_progress');
         delete_option('nbs3_bulk_offload_data');
     }
 }
@@ -228,6 +243,7 @@ if (!function_exists('nbs3_get_unoffloaded_media_items_count')) {
             WHERE p.post_type = 'attachment'
             AND (pm.meta_value IS NULL OR pm.meta_value = '')";
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Complex JOIN query counting unoffloaded attachments
         return (int) $wpdb->get_var($query);
     }
 }
@@ -253,6 +269,7 @@ if (!function_exists('nbs3_get_offloaded_media_items_count')) {
             )
         );
 
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Query is prepared above
         return (int) $wpdb->get_var($query);
     }
 }
@@ -414,6 +431,7 @@ if (!function_exists('nbs3_get_copyright_text')) {
     function nbs3_get_copyright_text(): string
     {
         return sprintf(
+            /* translators: %s: plugin version number */
             __('Nobloat S3 Offload v%s', 'nobloat-s3-offload'),
             NBS3_VERSION
         );

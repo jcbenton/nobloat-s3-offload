@@ -839,3 +839,118 @@ button.nbs3-save-credentials.loading::after {
 .nbs3-section {
 	position: relative;
 }
+
+/* Documentation page styles */
+.nbs3-documentation .nbs3-section-content {
+	padding: 20px;
+	background: #fff;
+}
+
+.nbs3-documentation .nbs3-section-content h3 {
+	margin: 25px 0 15px 0;
+	font-size: 1rem;
+	color: #1d2327;
+}
+
+.nbs3-documentation .nbs3-section-content h3:first-child {
+	margin-top: 10px;
+}
+
+.nbs3-documentation .nbs3-section-content p {
+	margin: 0 0 15px 0;
+	line-height: 1.6;
+	color: #3c434a;
+}
+
+.nbs3-documentation .nbs3-section-content ol,
+.nbs3-documentation .nbs3-section-content ul {
+	margin: 0 0 15px 20px;
+	line-height: 1.8;
+	color: #3c434a;
+}
+
+.nbs3-documentation .nbs3-section-content li {
+	margin-bottom: 8px;
+}
+
+.nbs3-documentation .nbs3-section-content pre {
+	background: #23282d;
+	color: #f0f0f1;
+	padding: 15px 20px;
+	border-radius: 4px;
+	overflow-x: auto;
+	margin: 15px 0;
+	font-size: 13px;
+	line-height: 1.6;
+}
+
+.nbs3-documentation .nbs3-section-content pre code {
+	background: transparent;
+	padding: 0;
+	color: inherit;
+}
+
+.nbs3-documentation .nbs3-section-content code {
+	background: #f0f0f1;
+	padding: 2px 6px;
+	border-radius: 3px;
+	font-size: 13px;
+	color: #1d2327;
+}
+
+.nbs3-docs-table {
+	width: 100%;
+	border-collapse: collapse;
+	margin: 15px 0;
+}
+
+.nbs3-docs-table th,
+.nbs3-docs-table td {
+	padding: 12px 15px;
+	text-align: left;
+	border-bottom: 1px solid #e0e0e0;
+	vertical-align: top;
+}
+
+.nbs3-docs-table th {
+	background: #f9f9f9;
+	font-weight: 600;
+	color: #1d2327;
+	width: 200px;
+}
+
+.nbs3-docs-table td {
+	color: #3c434a;
+	line-height: 1.6;
+}
+
+.nbs3-docs-table tr:last-child th,
+.nbs3-docs-table tr:last-child td {
+	border-bottom: none;
+}
+
+@media screen and (max-width: 782px) {
+	.nbs3-docs-table th {
+		width: auto;
+	}
+
+	.nbs3-docs-table th,
+	.nbs3-docs-table td {
+		display: block;
+		padding: 10px 15px;
+	}
+
+	.nbs3-docs-table th {
+		border-bottom: none;
+		padding-bottom: 5px;
+	}
+
+	.nbs3-docs-table td {
+		padding-top: 0;
+	}
+
+	.nbs3-documentation .nbs3-section-content pre {
+		font-size: 12px;
+		padding: 12px 15px;
+	}
+}
