@@ -65,6 +65,33 @@ class S3Provider
         if (!empty($domain)) {
             return nbs3_normalize_url($domain);
         }
+
+        // Fall back to S3 bucket URL if no CDN domain is set
+        $bucket = $this->getBucket();
+        $region = nbs3_get_credential('region');
+        $endpoint = nbs3_get_credential('endpoint');
+
+        if (!empty($bucket)) {
+            // If custom endpoint is set (non-AWS S3-compatible), use it
+            if (!empty($endpoint)) {
+                $endpoint = nbs3_normalize_url($endpoint);
+                // Check if it's path-style or virtual-hosted style
+                if (nbs3_get_credential('path_style_endpoint')) {
+                    return rtrim($endpoint, '/') . '/' . $bucket;
+                }
+                // Virtual-hosted style: bucket.endpoint
+                $parsed = wp_parse_url($endpoint);
+                $scheme = $parsed['scheme'] ?? 'https';
+                $host = $parsed['host'] ?? '';
+                return $scheme . '://' . $bucket . '.' . $host;
+            }
+
+            // Default AWS S3 URL
+            if (!empty($region)) {
+                return 'https://' . $bucket . '.s3.' . $region . '.amazonaws.com';
+            }
+        }
+
         return '';
     }
 
@@ -310,12 +337,12 @@ class S3Provider
     public function credentialsField()
     {
         $fields = [
-            ['name' => 'endpoint', 'label' => __('S3 Endpoint', 'nobloat-s3-offload'), 'type' => 'text', 'placeholder' => 'https://s3.amazonaws.com', 'description' => __('Leave empty for AWS S3, or enter custom endpoint for S3-compatible services.', 'nobloat-s3-offload')],
             ['name' => 'region', 'label' => __('Region', 'nobloat-s3-offload'), 'type' => 'text', 'placeholder' => 'us-east-1', 'default' => 'us-east-1'],
             ['name' => 'bucket', 'label' => __('Bucket Name', 'nobloat-s3-offload'), 'type' => 'text', 'placeholder' => 'my-bucket'],
             ['name' => 'key', 'label' => __('Access Key', 'nobloat-s3-offload'), 'type' => 'text', 'placeholder' => 'AKIAIOSFODNN7EXAMPLE'],
             ['name' => 'secret', 'label' => __('Secret Key', 'nobloat-s3-offload'), 'type' => 'password', 'placeholder' => 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'],
-            ['name' => 'domain', 'label' => __('CloudFront or Custom Domain (CDN)', 'nobloat-s3-offload'), 'type' => 'text', 'placeholder' => 'https://d1234.cloudfront.net', 'description' => __('Enter your CloudFront distribution URL or custom CDN domain. When set, media URLs will be rewritten to serve files from this domain instead of your local server.', 'nobloat-s3-offload')],
+            ['name' => 'domain', 'label' => __('CloudFront or Custom Domain (CDN)', 'nobloat-s3-offload'), 'type' => 'text', 'placeholder' => 'https://d1234.cloudfront.net', 'description' => __('Optional. Enter your CloudFront distribution URL or custom CDN domain. If left empty, URLs will use the direct S3 bucket URL.', 'nobloat-s3-offload')],
+            ['name' => 'endpoint', 'label' => __('S3 Endpoint', 'nobloat-s3-offload'), 'type' => 'text', 'placeholder' => 'https://nyc3.digitaloceanspaces.com', 'description' => __('Leave empty for AWS S3, or enter custom endpoint for S3-compatible services.', 'nobloat-s3-offload')],
             ['name' => 'path_style_endpoint', 'label' => __('Use Path-Style Endpoint', 'nobloat-s3-offload'), 'type' => 'checkbox', 'description' => __('Enable for MinIO or other S3-compatible services that require path-style URLs.', 'nobloat-s3-offload')],
         ];
 

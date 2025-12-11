@@ -1,18 +1,21 @@
 === Nobloat S3 Offload ===
 Contributors: mailborder
+Donate Link: https://donate.stripe.com/3cIfZi81NbxX9CX4uybfO01
 Tags: s3, media, offload, cdn, aws
 Requires at least: 5.6
 Tested up to: 6.9
 Requires PHP: 8.1
 Stable tag: 1.0.5
-License: GPLv2 or later
-License URI: https://www.gnu.org/licenses/gpl-2.0.html
+License: GPLv3 or later
+License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
 Offload WordPress media to S3-compatible storage with CDN support, Bricks Builder integration, and WP-CLI commands.
 
 == Description ==
 
 Nobloat S3 Offload is a lightweight, no-bloat solution for offloading your WordPress media library to Amazon S3 or any S3-compatible storage provider (DigitalOcean Spaces, Cloudflare R2, MinIO, Wasabi, Backblaze B2, etc.).
+
+Written by Jerry Benton, the creator of Mailborder and MailScanner v5.
 
 = Features =
 

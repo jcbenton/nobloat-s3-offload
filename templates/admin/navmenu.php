@@ -16,9 +16,17 @@ $nbs3_menu_items = [
         'title' => __('Media Overview', 'nobloat-s3-offload'),
         'url' => nbs3_get_admin_page_url('nbs3_media_overview'),
     ],
+    'aws-guide' => [
+        'title' => __('AWS Guide', 'nobloat-s3-offload'),
+        'url' => nbs3_get_admin_page_url('nbs3_aws_guide'),
+    ],
     'documentation' => [
         'title' => __('Documentation', 'nobloat-s3-offload'),
         'url' => nbs3_get_admin_page_url('nbs3_documentation'),
+    ],
+    'about' => [
+        'title' => __('About', 'nobloat-s3-offload'),
+        'url' => nbs3_get_admin_page_url('nbs3_about'),
     ],
 ];
 

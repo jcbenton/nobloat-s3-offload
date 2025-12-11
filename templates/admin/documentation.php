@@ -36,28 +36,32 @@ if (!current_user_can('manage_options')) {
                 <div class="nbs3-section-content">
                     <table class="nbs3-docs-table">
                         <tr>
-                            <th><?php esc_html_e('Bucket', 'nobloat-s3-offload'); ?></th>
-                            <td><?php esc_html_e('The name of your S3 bucket where files will be stored.', 'nobloat-s3-offload'); ?></td>
-                        </tr>
-                        <tr>
                             <th><?php esc_html_e('Region', 'nobloat-s3-offload'); ?></th>
                             <td><?php esc_html_e('The AWS region where your bucket is located (e.g., us-east-1, eu-west-1).', 'nobloat-s3-offload'); ?></td>
                         </tr>
                         <tr>
-                            <th><?php esc_html_e('Access Key ID', 'nobloat-s3-offload'); ?></th>
+                            <th><?php esc_html_e('Bucket Name', 'nobloat-s3-offload'); ?></th>
+                            <td><?php esc_html_e('The name of your S3 bucket where files will be stored.', 'nobloat-s3-offload'); ?></td>
+                        </tr>
+                        <tr>
+                            <th><?php esc_html_e('Access Key', 'nobloat-s3-offload'); ?></th>
                             <td><?php esc_html_e('Your AWS IAM access key ID with permissions to read/write to the bucket.', 'nobloat-s3-offload'); ?></td>
                         </tr>
                         <tr>
-                            <th><?php esc_html_e('Secret Access Key', 'nobloat-s3-offload'); ?></th>
+                            <th><?php esc_html_e('Secret Key', 'nobloat-s3-offload'); ?></th>
                             <td><?php esc_html_e('Your AWS IAM secret access key (keep this secure!).', 'nobloat-s3-offload'); ?></td>
                         </tr>
                         <tr>
-                            <th><?php esc_html_e('Custom Endpoint', 'nobloat-s3-offload'); ?></th>
-                            <td><?php esc_html_e('Optional. For S3-compatible providers like DigitalOcean Spaces, Cloudflare R2, or MinIO. Leave empty for AWS S3.', 'nobloat-s3-offload'); ?></td>
+                            <th><?php esc_html_e('CloudFront or Custom Domain (CDN)', 'nobloat-s3-offload'); ?></th>
+                            <td><?php esc_html_e('Optional. Enter your CloudFront distribution URL or custom CDN domain. If left empty, URLs will use the direct S3 bucket URL.', 'nobloat-s3-offload'); ?></td>
                         </tr>
                         <tr>
-                            <th><?php esc_html_e('CloudFront or Custom Domain (CDN)', 'nobloat-s3-offload'); ?></th>
-                            <td><?php esc_html_e('Enter your CloudFront distribution URL or custom CDN domain. When set, media URLs will be rewritten to serve files from this domain instead of your local server.', 'nobloat-s3-offload'); ?></td>
+                            <th><?php esc_html_e('S3 Endpoint', 'nobloat-s3-offload'); ?></th>
+                            <td><?php esc_html_e('Leave empty for AWS S3. For S3-compatible providers like DigitalOcean Spaces, Cloudflare R2, or MinIO, enter the custom endpoint URL. Example: https://nyc3.digitaloceanspaces.com', 'nobloat-s3-offload'); ?></td>
+                        </tr>
+                        <tr>
+                            <th><?php esc_html_e('Use Path-Style Endpoint', 'nobloat-s3-offload'); ?></th>
+                            <td><?php esc_html_e('Enable for providers that require path-style URLs (bucket in path) instead of virtual-hosted style (bucket in subdomain). Common with MinIO and some self-hosted solutions.', 'nobloat-s3-offload'); ?></td>
                         </tr>
                     </table>
 
@@ -163,7 +167,7 @@ wp nbs3 revert --dry-run</code></pre>
                     <h2><?php esc_html_e('Bricks Builder Integration', 'nobloat-s3-offload'); ?></h2>
                 </div>
                 <div class="nbs3-section-content">
-                    <p><?php esc_html_e('When Bricks Builder is active, you can automatically sync Bricks files to S3 and serve them via CDN. Two types of files can be synced:', 'nobloat-s3-offload'); ?></p>
+                    <p><?php esc_html_e('When Bricks Builder is active, you can automatically sync Bricks files to S3 and serve them from S3 or your CDN. Two types of files can be synced:', 'nobloat-s3-offload'); ?></p>
 
                     <?php if (!nbs3_is_bricks_active()) : ?>
                     <div class="notice notice-info inline" style="margin: 15px 0;">
@@ -176,8 +180,8 @@ wp nbs3 revert --dry-run</code></pre>
                     <ol>
                         <li><?php esc_html_e('Enable "Sync Bricks CSS to S3" in General Settings', 'nobloat-s3-offload'); ?></li>
                         <li><?php esc_html_e('When Bricks generates CSS files, they are automatically uploaded to S3', 'nobloat-s3-offload'); ?></li>
-                        <li><?php esc_html_e('CSS URLs are rewritten to serve from your CDN domain', 'nobloat-s3-offload'); ?></li>
-                        <li><?php esc_html_e('A background cron job cleans up deleted files every 5 minutes', 'nobloat-s3-offload'); ?></li>
+                        <li><?php esc_html_e('CSS URLs are rewritten to serve from your CDN or S3 bucket', 'nobloat-s3-offload'); ?></li>
+                        <li><?php esc_html_e('A background cron job syncs and cleans up deleted files every 5 minutes', 'nobloat-s3-offload'); ?></li>
                     </ol>
 
                     <h3><?php esc_html_e('Bricks Theme Assets Sync', 'nobloat-s3-offload'); ?></h3>
@@ -185,14 +189,14 @@ wp nbs3 revert --dry-run</code></pre>
                     <ol>
                         <li><?php esc_html_e('Enable "Sync Bricks Theme Assets to S3" in General Settings', 'nobloat-s3-offload'); ?></li>
                         <li><?php esc_html_e('Click "Sync Now" to upload all theme assets to S3', 'nobloat-s3-offload'); ?></li>
-                        <li><?php esc_html_e('Theme asset URLs are rewritten to serve from your CDN domain', 'nobloat-s3-offload'); ?></li>
+                        <li><?php esc_html_e('Theme asset URLs are rewritten to serve from your CDN or S3 bucket', 'nobloat-s3-offload'); ?></li>
                         <li><?php esc_html_e('Assets automatically re-sync when any plugin or theme is updated', 'nobloat-s3-offload'); ?></li>
                     </ol>
 
                     <h3><?php esc_html_e('Requirements', 'nobloat-s3-offload'); ?></h3>
                     <ul>
                         <li><?php esc_html_e('Bricks Builder theme must be active', 'nobloat-s3-offload'); ?></li>
-                        <li><?php esc_html_e('A CloudFront or Custom Domain (CDN) must be configured for URL rewriting to work', 'nobloat-s3-offload'); ?></li>
+                        <li><?php esc_html_e('S3 connection must be configured and working (CDN is optional - URLs will fall back to direct S3 bucket URL)', 'nobloat-s3-offload'); ?></li>
                     </ul>
 
                     <h3><?php esc_html_e('WP-CLI Commands', 'nobloat-s3-offload'); ?></h3>
@@ -208,7 +212,8 @@ wp nbs3 sync-bricks --css-only
 # Only sync theme assets (skip generated CSS)
 wp nbs3 sync-bricks --assets-only
 
-# Remove all Bricks files from S3
+# Revert: Remove all Bricks files from S3 (serve locally again)
+wp nbs3 sync-bricks --revert
 wp nbs3 sync-bricks --remove
 
 # Verbose output
@@ -276,6 +281,53 @@ define('NBS3_DOMAIN', 'https://cdn.yourdomain.com');
 define('NBS3_PATH_STYLE_ENDPOINT', true);</code></pre>
 
                     <p><?php esc_html_e('When credentials are defined in wp-config.php, the corresponding fields in the settings page will be disabled and show a notice that they are configured via constants.', 'nobloat-s3-offload'); ?></p>
+                </div>
+            </div>
+
+            <div class="nbs3-section">
+                <div class="nbs3-section-header">
+                    <h2><?php esc_html_e('Cron Jobs', 'nobloat-s3-offload'); ?></h2>
+                </div>
+                <div class="nbs3-section-content">
+                    <p><?php esc_html_e('The plugin uses WordPress cron for background processing. These jobs run automatically when enabled:', 'nobloat-s3-offload'); ?></p>
+
+                    <table class="nbs3-docs-table">
+                        <tr>
+                            <th><?php esc_html_e('Job', 'nobloat-s3-offload'); ?></th>
+                            <th><?php esc_html_e('Frequency', 'nobloat-s3-offload'); ?></th>
+                            <th><?php esc_html_e('Description', 'nobloat-s3-offload'); ?></th>
+                        </tr>
+                        <tr>
+                            <td>nbs3_bricks_sync_cron</td>
+                            <td><?php esc_html_e('Every 5 minutes', 'nobloat-s3-offload'); ?></td>
+                            <td><?php esc_html_e('Syncs Bricks CSS files to S3 and removes deleted files (when Bricks CSS Sync is enabled)', 'nobloat-s3-offload'); ?></td>
+                        </tr>
+                        <tr>
+                            <td>nbs3_check_stalled_processes</td>
+                            <td><?php esc_html_e('Every 15 minutes', 'nobloat-s3-offload'); ?></td>
+                            <td><?php esc_html_e('Monitors bulk offload processes and restarts stalled jobs', 'nobloat-s3-offload'); ?></td>
+                        </tr>
+                        <tr>
+                            <td>nbs3_sync_bricks_theme_assets_async</td>
+                            <td><?php esc_html_e('On-demand', 'nobloat-s3-offload'); ?></td>
+                            <td><?php esc_html_e('Triggered when any plugin or theme is updated (when Theme Assets Sync is enabled)', 'nobloat-s3-offload'); ?></td>
+                        </tr>
+                    </table>
+
+                    <h3><?php esc_html_e('Viewing Cron Jobs', 'nobloat-s3-offload'); ?></h3>
+                    <p><?php esc_html_e('You can view scheduled cron jobs using WP-CLI:', 'nobloat-s3-offload'); ?></p>
+                    <pre><code># List all scheduled cron events
+wp cron event list
+
+# List only this plugin's cron events
+wp cron event list | grep nbs3</code></pre>
+
+                    <h3><?php esc_html_e('WordPress Cron Reliability', 'nobloat-s3-offload'); ?></h3>
+                    <p><?php esc_html_e('WordPress cron is triggered by site visits. For low-traffic sites, consider setting up a real cron job:', 'nobloat-s3-offload'); ?></p>
+                    <pre><code># Add to your server's crontab (runs every 5 minutes)
+*/5 * * * * wget -q -O - https://yoursite.com/wp-cron.php?doing_wp_cron >/dev/null 2>&1</code></pre>
+                    <p><?php esc_html_e('Then disable WordPress\'s built-in cron in wp-config.php:', 'nobloat-s3-offload'); ?></p>
+                    <pre><code>define('DISABLE_WP_CRON', true);</code></pre>
                 </div>
             </div>
 

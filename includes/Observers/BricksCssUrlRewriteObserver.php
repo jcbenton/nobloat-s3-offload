@@ -43,8 +43,9 @@ class BricksCssUrlRewriteObserver implements ObserverInterface
             return;
         }
 
-        // Get CDN domain - no point registering if not set
-        if (empty(nbs3_get_credential('domain'))) {
+        // Get CDN/S3 domain - no point registering if not available
+        $s3Provider = new \NBS3\S3Provider();
+        if (empty($s3Provider->getDomain())) {
             return;
         }
 
@@ -75,7 +76,8 @@ class BricksCssUrlRewriteObserver implements ObserverInterface
             return $html;
         }
 
-        $cdn_domain = trailingslashit(nbs3_normalize_url(nbs3_get_credential('domain')));
+        $s3Provider = new \NBS3\S3Provider();
+        $cdn_domain = trailingslashit($s3Provider->getDomain());
 
         // Rewrite generated CSS files (/uploads/bricks/css/)
         if (nbs3_get_setting('sync_bricks_css', false) && strpos($html, '/uploads/bricks/css/') !== false) {

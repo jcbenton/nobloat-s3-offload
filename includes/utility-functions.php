@@ -69,7 +69,9 @@ if (!function_exists('nbs3_is_settings_page')) {
         $plugin_pages = [
             'general' => 'nbs3',
             'media-overview' => 'nbs3_media_overview',
-            'documentation' => 'nbs3_documentation'
+            'aws-guide' => 'nbs3_aws_guide',
+            'documentation' => 'nbs3_documentation',
+            'about' => 'nbs3_about'
         ];
 
         if (!empty($page_name)) {

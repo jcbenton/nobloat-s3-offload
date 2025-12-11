@@ -10,6 +10,7 @@ use NBS3\Observers\OffloadStatusObserver;
 use NBS3\Observers\AttachmentOffloadButtonObserver;
 use NBS3\Observers\ImageSrcsetObserver;
 use NBS3\Observers\ImageSrcsetMetaObserver;
+use NBS3\Observers\ImageDownsizeObserver;
 use NBS3\Observers\AttachmentUploadObserver;
 use NBS3\Observers\PostContentImageTagObserver;
 use NBS3\Observers\GetAttachedFileObserver;
@@ -43,6 +44,7 @@ class Offloader
         $this->attach(new AttachmentUploadObserver($this->s3Provider));
         $this->attach(new ImageSrcsetObserver($this->s3Provider));
         $this->attach(new ImageSrcsetMetaObserver($this->s3Provider));
+        $this->attach(new ImageDownsizeObserver($this->s3Provider));
         $this->attach(new AttachmentUrlObserver($this->s3Provider));
         $this->attach(new GetAttachedFileObserver());
         $this->attach(new OffloadStatusObserver($this->s3Provider));
@@ -61,14 +63,5 @@ class Offloader
     public function attach(ObserverInterface $observer)
     {
         $this->observers[] = $observer;
-    }
-
-    public function detach(ObserverInterface $observer)
-    {
-        foreach ($this->observers as $key => $obs) {
-            if ($obs === $observer) {
-                unset($this->observers[$key]);
-            }
-        }
     }
 }

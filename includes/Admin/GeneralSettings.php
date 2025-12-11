@@ -273,20 +273,12 @@ class GeneralSettings
         $options = get_option('nbs3_settings');
         $sync_bricks_css = isset($options['sync_bricks_css']) ? intval($options['sync_bricks_css']) : 0;
         $status = nbs3_get_bricks_sync_status();
-        $cdn_domain = nbs3_get_credential('domain');
 
         echo '<div class="nbs3-checkbox-option">';
         echo '<input type="checkbox" id="sync_bricks_css" name="nbs3_settings[sync_bricks_css]" value="1" ' . checked(1, $sync_bricks_css, false) . '/>';
         echo '<label for="sync_bricks_css">' . esc_html__('Sync Bricks CSS to S3', 'nobloat-s3-offload') . '</label>';
         echo '<p class="description">' . esc_html__('Automatically upload Bricks-generated CSS files to S3 and serve via CDN.', 'nobloat-s3-offload') . '</p>';
         echo '</div>';
-
-        // Show warning if CDN domain not set
-        if (empty($cdn_domain)) {
-            echo '<div class="notice notice-warning inline" style="margin: 10px 0;">';
-            echo '<p>' . esc_html__('Note: CSS files will sync to S3, but URLs will not be rewritten unless you configure a CloudFront or Custom Domain (CDN) in the S3 Connection section above.', 'nobloat-s3-offload') . '</p>';
-            echo '</div>';
-        }
 
         // Status display
         echo '<div class="nbs3-bricks-status" style="margin-top: 15px; padding: 12px; background: #f0f0f1; border-radius: 4px;">';
@@ -319,7 +311,6 @@ class GeneralSettings
     {
         $options = get_option('nbs3_settings');
         $sync_theme_assets = isset($options['sync_bricks_theme_assets']) ? intval($options['sync_bricks_theme_assets']) : 0;
-        $cdn_domain = nbs3_get_credential('domain');
 
         // Get status
         $s3Provider = new S3Provider();
@@ -331,13 +322,6 @@ class GeneralSettings
         echo '<label for="sync_bricks_theme_assets">' . esc_html__('Sync Bricks Theme Assets to S3', 'nobloat-s3-offload') . '</label>';
         echo '<p class="description">' . esc_html__('Upload Bricks theme static assets (CSS, JS, fonts) to S3. Re-syncs automatically when any plugin or theme is updated.', 'nobloat-s3-offload') . '</p>';
         echo '</div>';
-
-        // Show warning if CDN domain not set
-        if (empty($cdn_domain)) {
-            echo '<div class="notice notice-warning inline" style="margin: 10px 0;">';
-            echo '<p>' . esc_html__('Note: Theme assets will sync to S3, but URLs will not be rewritten unless you configure a CloudFront or Custom Domain (CDN) in the S3 Connection section above.', 'nobloat-s3-offload') . '</p>';
-            echo '</div>';
-        }
 
         // Status display
         echo '<div class="nbs3-bricks-theme-assets-status" style="margin-top: 15px; padding: 12px; background: #f0f0f1; border-radius: 4px;">';
@@ -563,12 +547,21 @@ class GeneralSettings
             [$this, 'general_settings_page_view']
         );
 
-        // Documentation is added with priority 99 to ensure it appears last
-        add_action('admin_menu', [$this, 'add_documentation_submenu'], 99);
+        // AWS Guide and Documentation added with priority 99 to ensure correct order
+        add_action('admin_menu', [$this, 'add_additional_submenus'], 99);
     }
 
-    public function add_documentation_submenu()
+    public function add_additional_submenus()
     {
+        add_submenu_page(
+            'nbs3',
+            __('AWS Guide', 'nobloat-s3-offload'),
+            __('AWS Guide', 'nobloat-s3-offload'),
+            'manage_options',
+            'nbs3_aws_guide',
+            [$this, 'aws_guide_page_view']
+        );
+
         add_submenu_page(
             'nbs3',
             __('Documentation', 'nobloat-s3-offload'),
@@ -577,11 +570,30 @@ class GeneralSettings
             'nbs3_documentation',
             [$this, 'documentation_page_view']
         );
+
+        add_submenu_page(
+            'nbs3',
+            __('About', 'nobloat-s3-offload'),
+            __('About', 'nobloat-s3-offload'),
+            'manage_options',
+            'nbs3_about',
+            [$this, 'about_page_view']
+        );
+    }
+
+    public function aws_guide_page_view()
+    {
+        nbs3_get_view('admin/aws-guide');
     }
 
     public function documentation_page_view()
     {
         nbs3_get_view('admin/documentation');
+    }
+
+    public function about_page_view()
+    {
+        nbs3_get_view('admin/about');
     }
 
     public function general_settings_page_view()

@@ -1,14 +1,15 @@
 <?php
 /*
  * Plugin Name:       Nobloat S3 Offload
- * Plugin URI:        https://github.com/jbenton/nobloat-s3-offload
+ * Plugin URI:        https://github.com/mailborder/nobloat-s3-offload
  * Description:       Lightweight S3 media offloader for WordPress. Offload media to any S3-compatible storage.
  * Version:           1.0.5
  * Requires at least: 5.6
  * Requires PHP:      8.1
- * Author:            Starter Fork
- * License:           GPL v2 or later
- * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
+ * Author:            Jerry Benton
+ * Author URI:        https://www.mailborder.com
+ * License:           GPL v3 or later
+ * License URI:       https://www.gnu.org/licenses/gpl-3.0.html
  * Text Domain:       nobloat-s3-offload
  */
 

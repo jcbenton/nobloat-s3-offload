@@ -24,7 +24,10 @@ class BricksSyncCommand
      * : Show sync status without syncing.
      *
      * [--remove]
-     * : Remove all Bricks files from S3.
+     * : Remove all Bricks files from S3 (revert to local serving).
+     *
+     * [--revert]
+     * : Alias for --remove. Remove all Bricks files from S3.
      *
      * [--css-only]
      * : Only sync generated CSS files (skip theme assets).
@@ -49,8 +52,9 @@ class BricksSyncCommand
      *     # Only sync theme assets
      *     wp nbs3 sync-bricks --assets-only
      *
-     *     # Remove all Bricks files from S3
+     *     # Remove all Bricks files from S3 (revert to local)
      *     wp nbs3 sync-bricks --remove
+     *     wp nbs3 sync-bricks --revert
      *
      * @param array $args Positional arguments.
      * @param array $assoc_args Associative arguments (flags).
@@ -71,10 +75,13 @@ class BricksSyncCommand
         $verbose = isset($assoc_args['verbose']);
         $cssOnly = isset($assoc_args['css-only']);
         $assetsOnly = isset($assoc_args['assets-only']);
+        $isRevert = isset($assoc_args['remove']) || isset($assoc_args['revert']);
 
-        // Determine what to sync
+        // Determine what to sync/remove
         $syncCss = !$assetsOnly;
-        $syncAssets = !$cssOnly && nbs3_get_setting('sync_bricks_theme_assets', false);
+        // For revert: remove all synced files regardless of setting state
+        // For sync: only sync if setting is enabled
+        $syncAssets = !$cssOnly && ($isRevert || nbs3_get_setting('sync_bricks_theme_assets', false));
 
         // Handle --status flag
         if (isset($assoc_args['status'])) {
@@ -82,8 +89,8 @@ class BricksSyncCommand
             return;
         }
 
-        // Handle --remove flag
-        if (isset($assoc_args['remove'])) {
+        // Handle --remove or --revert flag
+        if ($isRevert) {
             $this->removeFromS3($syncCss, $syncAssets);
             return;
         }
