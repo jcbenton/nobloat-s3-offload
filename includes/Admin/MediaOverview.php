@@ -2,6 +2,8 @@
 
 namespace NBS3\Admin;
 
+defined( 'ABSPATH' ) || exit;
+
 use \Exception;
 
 class MediaOverview

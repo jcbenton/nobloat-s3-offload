@@ -2,8 +2,8 @@
 /*
  * Plugin Name:       Nobloat S3 Offload
  * Plugin URI:        https://github.com/mailborder/nobloat-s3-offload
- * Description:       Lightweight S3 media offloader for WordPress. Offload media to any S3-compatible storage.
- * Version:           1.0.5
+ * Description:       Lightweight S3 media offloader for WordPress. Offloads media to any S3-compatible storage.
+ * Version:           1.0.7
  * Requires at least: 5.6
  * Requires PHP:      8.1
  * Author:            Jerry Benton
@@ -47,10 +47,17 @@ if (!class_exists('NBS3')) {
             $this->define('NBS3_BASENAME', plugin_basename(__FILE__));
             $this->define('NBS3_VERSION', $this->version);
 
-            // Register hooks
+            // Register activation/deactivation hooks (must be done early)
             register_activation_hook(__FILE__, array($this, 'plugin_activated'));
             register_deactivation_hook(__FILE__, array($this, 'plugin_deactivated'));
 
+            // Delay the rest of initialization until plugins_loaded
+            // to ensure translations are loaded at the proper time (WP 6.7+)
+            add_action('plugins_loaded', array($this, 'late_initialize'));
+        }
+
+        public function late_initialize()
+        {
             // Set up container
             $this->setup_container();
 

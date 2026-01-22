@@ -2,6 +2,8 @@
 
 namespace NBS3\Admin\Observers;
 
+defined( 'ABSPATH' ) || exit;
+
 use NBS3\Interfaces\ObserverInterface;
 
 class AdminFooterTexts implements ObserverInterface

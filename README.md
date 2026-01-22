@@ -155,4 +155,4 @@ add_filter('nbs3_should_offload_attachment', function($should_offload, $attachme
 
 ## License
 
-GPL v2 or later
+GPL v3 or later

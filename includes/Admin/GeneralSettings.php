@@ -1,6 +1,7 @@
 <?php
-
 namespace NBS3\Admin;
+
+defined( 'ABSPATH' ) || exit;
 
 use NBS3\S3Provider;
 

@@ -2,6 +2,8 @@
 
 namespace NBS3\Abstracts\WP_Background_Processing;
 
+defined( 'ABSPATH' ) || exit;
+
 /**
  * WP Background Process
  *

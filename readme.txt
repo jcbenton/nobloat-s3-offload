@@ -5,7 +5,7 @@ Tags: s3, media, offload, cdn, aws
 Requires at least: 5.6
 Tested up to: 6.9
 Requires PHP: 8.1
-Stable tag: 1.0.5
+Stable tag: 1.0.7
 License: GPLv3 or later
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -113,6 +113,13 @@ If media cannot be uploaded to S3, the local file is preserved and WordPress wil
 
 == Changelog ==
 
+= 1.0.7 =
+* Activation hook update
+* Defensive path traversal check added
+
+= 1.0.6 =
+* Composer fix for vendor directory
+
 = 1.0.5 =
 * Initial release
 * Media offloading to S3-compatible storage
@@ -127,8 +134,8 @@ If media cannot be uploaded to S3, the local file is preserved and WordPress wil
 
 == Upgrade Notice ==
 
-= 1.0.5 =
-Initial release.
+= 1.0.7 =
+No admin action required after upgrading the plugin. 
 
 == WP-CLI Commands ==
 

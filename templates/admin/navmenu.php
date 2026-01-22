@@ -1,6 +1,7 @@
 <?php
-
 declare(strict_types=1);
+
+defined( 'ABSPATH' ) || exit;
 
 function nbs3_get_admin_page_url(string $page): string
 {

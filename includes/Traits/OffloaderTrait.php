@@ -55,7 +55,14 @@ trait OffloaderTrait
         $file_path = get_attached_file($attachment_id);
 
         if (isset($metadata['file'])) {
-            $dirname = nbs3_is_media_organized_by_year_month() ? trailingslashit(dirname($metadata['file'])) : "";
+            $dirname = '';
+            if (nbs3_is_media_organized_by_year_month()) {
+                $dir = dirname($metadata['file']);
+                // dirname() returns '.' for files without a directory component
+                if ($dir !== '.' && $dir !== '') {
+                    $dirname = trailingslashit($dir);
+                }
+            }
             return $path_prefix . $dirname . $object_version;
         }
 

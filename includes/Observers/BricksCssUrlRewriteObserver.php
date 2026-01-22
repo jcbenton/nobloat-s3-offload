@@ -2,6 +2,8 @@
 
 namespace NBS3\Observers;
 
+defined( 'ABSPATH' ) || exit;
+
 use NBS3\Interfaces\ObserverInterface;
 
 /**

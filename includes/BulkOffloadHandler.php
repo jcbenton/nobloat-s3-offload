@@ -2,6 +2,8 @@
 
 namespace NBS3;
 
+defined( 'ABSPATH' ) || exit;
+
 use NBS3\Services\BulkMediaOffloader;
 use NBS3\S3Provider;
 
