@@ -1,4 +1,10 @@
 <?php
+/**
+ * Attachment Offload Button Observer.
+ *
+ * @package NoBloat_S3_Offload
+ * @since   1.0.0
+ */
 
 namespace NBS3\Observers;
 
@@ -6,6 +12,11 @@ use NBS3\S3Provider;
 use NBS3\Interfaces\ObserverInterface;
 use NBS3\Traits\OffloaderTrait;
 
+/**
+ * Observer that adds an "Offload Now" button to the attachment edit screen.
+ *
+ * @since 1.0.0
+ */
 class AttachmentOffloadButtonObserver implements ObserverInterface {
 
 	use OffloaderTrait;
@@ -15,15 +26,15 @@ class AttachmentOffloadButtonObserver implements ObserverInterface {
 	 *
 	 * @var S3Provider
 	 */
-	private S3Provider $s3Provider;
+	private S3Provider $s3_provider;
 
 	/**
 	 * Constructor.
 	 *
-	 * @param S3Provider $s3Provider The cloud provider instance.
+	 * @param S3Provider $s3_provider The cloud provider instance.
 	 */
-	public function __construct( S3Provider $s3Provider ) {
-		$this->s3Provider = $s3Provider;
+	public function __construct( S3Provider $s3_provider ) {
+		$this->s3_provider = $s3_provider;
 	}
 
 	/**
@@ -45,17 +56,17 @@ class AttachmentOffloadButtonObserver implements ObserverInterface {
 	 * @return array The modified form fields.
 	 */
 	public function run( array $form_fields, \WP_Post $post ): array {
-		// Add the button if the attachment is not already offloaded
-		// This includes both new attachments and those with failed offload attempts
+		// Add the button if the attachment is not already offloaded.
+		// This includes both new attachments and those with failed offload attempts.
 		if ( ! $this->is_offloaded( $post->ID ) ) {
-			$buttonText = $this->has_errors( $post->ID ) ?
+			$button_text = $this->has_errors( $post->ID ) ?
 				__( 'Retry Offload', 'nobloat-s3-offload' ) :
 				__( 'Offload Now', 'nobloat-s3-offload' );
 
 			$form_fields['nbs3_offload_button'] = array(
 				'label' => __( 'Cloud Offload:', 'nobloat-s3-offload' ),
 				'input' => 'html',
-				'html'  => $this->generateOffloadButtonHtml( $post->ID, $buttonText ),
+				'html'  => $this->generate_offload_button_html( $post->ID, $button_text ),
 			);
 		}
 
@@ -66,21 +77,21 @@ class AttachmentOffloadButtonObserver implements ObserverInterface {
 	 * Generate the HTML for the "Offload Now" button.
 	 *
 	 * @param int         $attachment_id The attachment ID.
-	 * @param string|null $button_text The text to display on the button.
+	 * @param string|null $button_text   The text to display on the button.
 	 * @return string The generated HTML.
 	 */
-	private function generateOffloadButtonHtml( int $attachment_id, ?string $button_text = null ): string {
+	private function generate_offload_button_html( int $attachment_id, ?string $button_text = null ): string {
 		$nonce       = wp_create_nonce( 'nbs3_offload_single_' . $attachment_id );
-		$button_text = $button_text ?: __( 'Offload Now', 'nobloat-s3-offload' );
+		$button_text = $button_text ? $button_text : __( 'Offload Now', 'nobloat-s3-offload' );
 
-		// Always use blue button style
+		// Always use blue button style.
 		$button_style = 'background: #0073aa; color: white; border-color: #0073aa; min-width: 120px;';
 
 		return sprintf(
 			'<div style="min-height: 30px;">
                 <div style="margin-bottom: 8px;">
-                    <button type="button" class="button nbs3-offload-single-btn" 
-                            data-attachment-id="%d" 
+                    <button type="button" class="button nbs3-offload-single-btn"
+                            data-attachment-id="%d"
                             data-nonce="%s"
                             data-original-text="%s"
                             style="%s">
@@ -108,7 +119,7 @@ class AttachmentOffloadButtonObserver implements ObserverInterface {
 	 * @return void
 	 */
 	public function handle_ajax_offload(): void {
-		// Verify the request
+		// Verify the request.
 		if ( ! $this->verify_ajax_request() ) {
 			wp_send_json_error(
 				array(
@@ -117,10 +128,10 @@ class AttachmentOffloadButtonObserver implements ObserverInterface {
 			);
 		}
 
-        // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotValidated -- Nonce verified in verify_ajax_request(), attachment_id sanitized by intval()
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotValidated -- Nonce verified in verify_ajax_request(), attachment_id sanitized by intval().
 		$attachment_id = intval( $_POST['attachment_id'] );
 
-		// Verify attachment exists and is not already offloaded
+		// Verify attachment exists and is not already offloaded.
 		if ( ! get_post( $attachment_id ) || $this->is_offloaded( $attachment_id ) ) {
 			wp_send_json_error(
 				array(
@@ -130,9 +141,9 @@ class AttachmentOffloadButtonObserver implements ObserverInterface {
 		}
 
 		try {
-			// Use the existing CloudAttachmentUploader service
-			$uploader = new \NBS3\Services\CloudAttachmentUploader( $this->s3Provider );
-			$result   = $uploader->uploadAttachment( $attachment_id );
+			// Use the existing CloudAttachmentUploader service.
+			$uploader = new \NBS3\Services\CloudAttachmentUploader( $this->s3_provider );
+			$result   = $uploader->upload_attachment( $attachment_id );
 
 			if ( $result ) {
 				wp_send_json_success(
@@ -142,7 +153,7 @@ class AttachmentOffloadButtonObserver implements ObserverInterface {
 					)
 				);
 			} else {
-				// Check for specific error messages (sanitized for safety)
+				// Check for specific error messages (sanitized for safety).
 				$errors        = get_post_meta( $attachment_id, 'nbs3_error_log', true );
 				$error_message = ! empty( $errors ) ?
 					wp_kses( ( is_array( $errors ) ? implode( '; ', $errors ) : $errors ), array() ) :
@@ -170,7 +181,7 @@ class AttachmentOffloadButtonObserver implements ObserverInterface {
 	/**
 	 * Verify the Ajax request is valid.
 	 *
-	 * @return bool
+	 * @return bool True if the request is valid, false otherwise.
 	 */
 	private function verify_ajax_request(): bool {
 		if ( ! current_user_can( 'upload_files' ) ) {
@@ -191,7 +202,7 @@ class AttachmentOffloadButtonObserver implements ObserverInterface {
 	 * Check if attachment has errors.
 	 *
 	 * @param int $attachment_id The attachment ID.
-	 * @return bool
+	 * @return bool True if the attachment has errors, false otherwise.
 	 */
 	private function has_errors( int $attachment_id ): bool {
 		$errors = get_post_meta( $attachment_id, 'nbs3_error_log', true );
@@ -215,14 +226,14 @@ class AttachmentOffloadButtonObserver implements ObserverInterface {
 					e.preventDefault();
 
 					var $button = $(this);
-					var $container = $button.closest('div').parent(); // Get the main container
+					var $container = $button.closest('div').parent(); // Get the main container.
 					var $status = $container.find('.nbs3-offload-status');
 					var $processingIndicator = $container.find('.nbs3-processing-indicator');
 					var attachmentId = $button.data('attachment-id');
 					var nonce = $button.data('nonce');
 					var originalText = $button.data('original-text');
 
-					// Show processing state
+					// Show processing state.
 					$button.prop('disabled', true).text('<?php echo esc_js( __( 'Processing...', 'nobloat-s3-offload' ) ); ?>');
 					$processingIndicator.css('display', 'flex');
 					$status.hide();
@@ -238,7 +249,7 @@ class AttachmentOffloadButtonObserver implements ObserverInterface {
 						success: function(response) {
 							$processingIndicator.hide();
 
-							// Create status span safely (XSS protection)
+							// Create status span safely (XSS protection).
 							var $span = $('<span>').css({'font-weight': '500'});
 							var message = response.data && response.data.message ? response.data.message : '';
 
@@ -246,12 +257,12 @@ class AttachmentOffloadButtonObserver implements ObserverInterface {
 								$span.css('color', '#00a32a').text('✓ ' + message);
 								$status.empty().append($span).show();
 
-								// Hide the button after successful offload
+								// Hide the button after successful offload.
 								$button.fadeOut(300, function() {
 									$(this).remove();
 								});
 
-								// Reload the attachment details to show updated status
+								// Reload the attachment details to show updated status.
 								setTimeout(function() {
 									location.reload();
 								}, 2000);
@@ -277,15 +288,15 @@ class AttachmentOffloadButtonObserver implements ObserverInterface {
 	/**
 	 * Check if we're on a media-related page.
 	 *
-	 * @return bool
+	 * @return bool True if on a media page, false otherwise.
 	 */
 	private function is_media_page(): bool {
 		$current_screen = get_current_screen();
 
 		return $current_screen && (
-			$current_screen->id === 'attachment' ||
-			$current_screen->base === 'upload' ||
-			$current_screen->base === 'media'
+			'attachment' === $current_screen->id ||
+			'upload' === $current_screen->base ||
+			'media' === $current_screen->base
 		);
 	}
 }

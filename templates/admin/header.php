@@ -1,3 +1,11 @@
+<?php
+/**
+ * Admin header template.
+ *
+ * @package Nobloat_S3_Offload
+ */
+
+?>
 <div class="nbs3-topbar">
 	<div class="nbs3-header">
 		<h1>

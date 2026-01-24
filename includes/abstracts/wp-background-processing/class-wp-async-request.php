@@ -1,56 +1,46 @@
 <?php
+/**
+ * WP Async Request
+ *
+ * @package NoBloat_S3_Offload
+ */
 
 namespace NBS3\Abstracts\WP_Background_Processing;
 
 /**
- * WP Async Request
- *
- * @package WP-Background-Processing
- */
-
-/**
  * Abstract WP_Async_Request class.
+ *
+ * Handles async requests for background processing.
  *
  * @abstract
  */
 abstract class WP_Async_Request {
 
-
 	/**
-	 * Prefix
-	 *
-	 * (default value: 'wp')
+	 * Prefix for the identifier.
 	 *
 	 * @var string
-	 * @access protected
 	 */
 	protected $prefix = 'wp';
 
 	/**
-	 * Action
-	 *
-	 * (default value: 'async_request')
+	 * Action name for the async request.
 	 *
 	 * @var string
-	 * @access protected
 	 */
 	protected $action = 'async_request';
 
 	/**
-	 * Identifier
+	 * Unique identifier for the async request.
 	 *
-	 * @var mixed
-	 * @access protected
+	 * @var string
 	 */
 	protected $identifier;
 
 	/**
-	 * Data
-	 *
-	 * (default value: array())
+	 * Data to be sent with the async request.
 	 *
 	 * @var array
-	 * @access protected
 	 */
 	protected $data = array();
 
@@ -105,11 +95,11 @@ abstract class WP_Async_Request {
 		);
 
 		/**
-		 * Filters the post arguments used during an async request.
+		 * Filters the query arguments used during an async request.
 		 *
-		 * @param array $url
+		 * @param array $args Query arguments.
 		 */
-        // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.DynamicHooknameFound -- Third-party library, identifier is prefixed
+		// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.DynamicHooknameFound -- Third-party library, identifier is prefixed.
 		return apply_filters( $this->identifier . '_query_args', $args );
 	}
 
@@ -126,11 +116,11 @@ abstract class WP_Async_Request {
 		$url = admin_url( 'admin-ajax.php' );
 
 		/**
-		 * Filters the post arguments used during an async request.
+		 * Filters the query URL used during an async request.
 		 *
-		 * @param string $url
+		 * @param string $url Query URL.
 		 */
-        // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.DynamicHooknameFound -- Third-party library, identifier is prefixed
+		// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.DynamicHooknameFound -- Third-party library, identifier is prefixed.
 		return apply_filters( $this->identifier . '_query_url', $url );
 	}
 
@@ -149,16 +139,16 @@ abstract class WP_Async_Request {
 			'blocking'  => false,
 			'body'      => $this->data,
 			'cookies'   => $_COOKIE, // Passing cookies ensures request is performed as initiating user.
-            // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WordPress core filter
+			// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- WordPress core filter.
 			'sslverify' => apply_filters( 'https_local_ssl_verify', false ), // Local requests, fine to pass false.
 		);
 
 		/**
 		 * Filters the post arguments used during an async request.
 		 *
-		 * @param array $args
+		 * @param array $args Post arguments.
 		 */
-        // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.DynamicHooknameFound -- Third-party library, identifier is prefixed
+		// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.DynamicHooknameFound -- Third-party library, identifier is prefixed.
 		return apply_filters( $this->identifier . '_post_args', $args );
 	}
 
@@ -189,11 +179,11 @@ abstract class WP_Async_Request {
 	 */
 	protected function maybe_wp_die( $return = null ) {
 		/**
-		 * Should wp_die be used?
+		 * Filters whether wp_die should be used.
 		 *
-		 * @return bool
+		 * @param bool $wp_die Whether to use wp_die.
 		 */
-        // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.DynamicHooknameFound -- Third-party library, identifier is prefixed
+		// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.DynamicHooknameFound -- Third-party library, identifier is prefixed.
 		if ( apply_filters( $this->identifier . '_wp_die', true ) ) {
 			wp_die();
 		}
@@ -206,6 +196,8 @@ abstract class WP_Async_Request {
 	 *
 	 * Override this method to perform any actions required
 	 * during the async request.
+	 *
+	 * @return void
 	 */
 	abstract protected function handle();
 }

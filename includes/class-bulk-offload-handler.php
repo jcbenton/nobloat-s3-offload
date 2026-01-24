@@ -1,24 +1,65 @@
 <?php
+/**
+ * Bulk Offload Handler Class.
+ *
+ * Handles bulk offloading of media attachments to cloud storage.
+ *
+ * @package NBS3
+ * @since 1.0.0
+ */
 
 namespace NBS3;
 
 use NBS3\Services\BulkMediaOffloader;
 use NBS3\S3Provider;
 
+/**
+ * Class BulkOffloadHandler
+ *
+ * Manages the bulk offload process including AJAX handlers,
+ * progress tracking, and process recovery.
+ *
+ * @since 1.0.0
+ */
 class BulkOffloadHandler {
 
+	/**
+	 * The bulk media offloader process.
+	 *
+	 * @since 1.0.0
+	 * @var BulkMediaOffloader
+	 */
 	protected $process_all;
 
+	/**
+	 * Singleton instance.
+	 *
+	 * @since 1.0.0
+	 * @var BulkOffloadHandler|null
+	 */
 	private static $instance = null;
 
+	/**
+	 * Get the singleton instance.
+	 *
+	 * @since 1.0.0
+	 * @return BulkOffloadHandler The singleton instance.
+	 */
 	public static function get_instance() {
-		if ( is_null( self::$instance ) ) {
+		if ( null === self::$instance ) {
 			self::$instance = new self();
 		}
 
 		return self::$instance;
 	}
 
+	/**
+	 * Constructor.
+	 *
+	 * Sets up action hooks for AJAX handlers and initialization.
+	 *
+	 * @since 1.0.0
+	 */
 	public function __construct() {
 		add_action( 'init', array( $this, 'init' ) );
 		add_action( 'wp_ajax_nbs3_check_bulk_offload_progress', array( $this, 'get_progress' ) );
@@ -27,6 +68,14 @@ class BulkOffloadHandler {
 		add_action( 'nbs3_cleanup_orphaned_queue', array( $this, 'cleanup_orphaned_queue' ) );
 	}
 
+	/**
+	 * Initialize the bulk offload handler.
+	 *
+	 * Sets up the S3 provider and background process.
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
 	public function init() {
 		try {
 			$bucket = nbs3_get_credential( 'bucket' );
@@ -35,8 +84,8 @@ class BulkOffloadHandler {
 				return;
 			}
 
-			$s3Provider        = new S3Provider();
-			$this->process_all = new BulkMediaOffloader( $s3Provider );
+			$s3_provider       = new S3Provider();
+			$this->process_all = new BulkMediaOffloader( $s3_provider );
 			add_action( $this->process_all->get_identifier() . '_cancelled', array( $this, 'process_is_cancelled' ) );
 
 			add_filter( 'cron_schedules', array( $this, 'add_cron_interval' ) );
@@ -46,11 +95,20 @@ class BulkOffloadHandler {
 				wp_schedule_event( time(), 'nbs3_fifteen_min', 'nbs3_check_stalled_processes' );
 			}
 		} catch ( \Exception $e ) {
-            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging
+			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging.
 			error_log( 'NBS3 - Error: ' . $e->getMessage() );
 		}
 	}
 
+	/**
+	 * Add custom cron interval.
+	 *
+	 * Adds a fifteen-minute interval for stalled process checks.
+	 *
+	 * @since 1.0.0
+	 * @param array $schedules Existing cron schedules.
+	 * @return array Modified cron schedules.
+	 */
 	public function add_cron_interval( $schedules ) {
 		$schedules['nbs3_fifteen_min'] = array(
 			'interval' => 15 * MINUTE_IN_SECONDS,
@@ -59,6 +117,14 @@ class BulkOffloadHandler {
 		return $schedules;
 	}
 
+	/**
+	 * Check for stalled bulk offload processes.
+	 *
+	 * Monitors the bulk offload process and recovers from stalls.
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
 	public function check_stalled_processes() {
 		if ( ! $this->process_all instanceof BulkMediaOffloader ) {
 			return;
@@ -76,7 +142,7 @@ class BulkOffloadHandler {
 		if ( $process_lock && ( $current_time - $last_update ) > 600 ) {
 			$bulk_data = nbs3_get_bulk_offload_data();
 
-            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging for debugging stalled processes
+			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging for debugging stalled processes.
 			error_log(
 				sprintf(
 					'NBS3: Detected stalled bulk offload process. Lock time: %s, Last update: %s, Processed: %d/%d',
@@ -102,8 +168,8 @@ class BulkOffloadHandler {
 		if ( $last_update > 0 && ( $current_time - $last_update ) > 3600 ) {
 			$bulk_data = nbs3_get_bulk_offload_data();
 
-			if ( isset( $bulk_data['status'] ) && in_array( $bulk_data['status'], array( 'processing', 'starting' ) ) ) {
-                // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging
+			if ( isset( $bulk_data['status'] ) && in_array( $bulk_data['status'], array( 'processing', 'starting' ), true ) ) {
+				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging.
 				error_log( 'NBS3: Cleaning up very old bulk offload process (>1 hour)' );
 
 				$this->force_unlock_process();
@@ -117,6 +183,14 @@ class BulkOffloadHandler {
 		}
 	}
 
+	/**
+	 * Force unlock a stalled process.
+	 *
+	 * Clears transients and scheduled hooks to recover from a stall.
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
 	private function force_unlock_process() {
 		if ( ! $this->process_all instanceof BulkMediaOffloader ) {
 			return;
@@ -132,6 +206,14 @@ class BulkOffloadHandler {
 		}
 	}
 
+	/**
+	 * Handle bulk offload AJAX request.
+	 *
+	 * Starts the bulk offload process.
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
 	public function bulk_offload() {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_send_json_error(
@@ -172,7 +254,7 @@ class BulkOffloadHandler {
 				)
 			);
 		} catch ( \Exception $e ) {
-            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging
+			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging.
 			error_log( 'NBS3 Bulk Offload Error: ' . $e->getMessage() );
 			wp_send_json_error(
 				array(
@@ -183,6 +265,14 @@ class BulkOffloadHandler {
 		}
 	}
 
+	/**
+	 * Handle bulk offload progress AJAX request.
+	 *
+	 * Returns the current progress of the bulk offload process.
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
 	public function get_progress() {
 		if ( ! check_ajax_referer( 'nbs3_bulk_offload', 'bulk_offload_nonce', false ) ) {
 			wp_send_json_error( array( 'message' => __( 'Security check failed', 'nobloat-s3-offload' ) ), 403 );
@@ -207,14 +297,23 @@ class BulkOffloadHandler {
 		);
 	}
 
+	/**
+	 * Handle all unoffloaded attachments.
+	 *
+	 * Queues all unoffloaded attachments for processing.
+	 *
+	 * @since 1.0.0
+	 * @throws \Exception If the process is not ready.
+	 * @return void
+	 */
 	protected function handle_all() {
 		$ready = $this->ensure_process_ready();
 		if ( is_wp_error( $ready ) ) {
-            // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- WP_Error message is safe, exception is caught and sanitized before output
+			// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- WP_Error message is safe, exception is caught and sanitized before output.
 			throw new \Exception( $ready->get_error_message() );
 		}
 
-		// Clear any existing queue items from previous runs (without triggering cancelled hook)
+		// Clear any existing queue items from previous runs without triggering cancelled hook.
 		$batches = $this->process_all->get_batches();
 		foreach ( $batches as $batch ) {
 			$this->process_all->delete( $batch->key );
@@ -229,6 +328,15 @@ class BulkOffloadHandler {
 		$this->process_all->save()->dispatch();
 	}
 
+	/**
+	 * Get unoffloaded attachments.
+	 *
+	 * Retrieves a batch of attachments that have not been offloaded.
+	 *
+	 * @since 1.0.0
+	 * @param int $batch_size Maximum number of attachments to retrieve.
+	 * @return array Array of attachment IDs.
+	 */
 	protected function get_unoffloaded_attachments( $batch_size = 50 ) {
 		global $wpdb;
 
@@ -249,7 +357,7 @@ class BulkOffloadHandler {
 			$batch_size * 2
 		);
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Query is prepared above, complex JOIN for finding unoffloaded attachments
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Query is prepared above, complex JOIN for finding unoffloaded attachments.
 		$normal_attachments = $wpdb->get_col( $query );
 
 		foreach ( $normal_attachments as $attachment_id ) {
@@ -304,7 +412,7 @@ class BulkOffloadHandler {
 				$remaining_slots * 2
 			);
 
-            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Query is prepared above, complex JOIN for finding failed attachments
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Query is prepared above, complex JOIN for finding failed attachments.
 			$error_attachments = $wpdb->get_col( $error_query );
 
 			foreach ( $error_attachments as $attachment_id ) {
@@ -354,6 +462,14 @@ class BulkOffloadHandler {
 		return $filtered_attachments;
 	}
 
+	/**
+	 * Handle cancel bulk offload AJAX request.
+	 *
+	 * Cancels the currently running bulk offload process.
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
 	public function cancel_bulk_offload() {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_send_json_error(
@@ -395,6 +511,14 @@ class BulkOffloadHandler {
 		);
 	}
 
+	/**
+	 * Handle process cancelled callback.
+	 *
+	 * Updates the bulk offload status when the process is cancelled.
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
 	public function process_is_cancelled() {
 		nbs3_update_bulk_offload_data(
 			array(
@@ -404,6 +528,14 @@ class BulkOffloadHandler {
 		delete_option( 'nbs3_bulk_offload_cancelled' );
 	}
 
+	/**
+	 * Clean up orphaned queue items.
+	 *
+	 * Removes empty batches and dispatches pending items.
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
 	public function cleanup_orphaned_queue() {
 		if ( ! $this->process_all instanceof BulkMediaOffloader ) {
 			return;
@@ -426,6 +558,14 @@ class BulkOffloadHandler {
 		}
 	}
 
+	/**
+	 * Ensure the bulk offload process is ready.
+	 *
+	 * Checks if the BulkMediaOffloader is properly initialized.
+	 *
+	 * @since 1.0.0
+	 * @return true|\WP_Error True if ready, WP_Error otherwise.
+	 */
 	private function ensure_process_ready() {
 		if ( $this->process_all instanceof BulkMediaOffloader ) {
 			return true;
@@ -437,6 +577,14 @@ class BulkOffloadHandler {
 		);
 	}
 
+	/**
+	 * Handle cron healthcheck for bulk offload.
+	 *
+	 * Triggers the cron healthcheck and returns success.
+	 *
+	 * @since 1.0.0
+	 * @return void
+	 */
 	public function bulk_offload_cron_healthcheck() {
 		$this->process_all->handle_cron_healthcheck();
 		wp_send_json_success();

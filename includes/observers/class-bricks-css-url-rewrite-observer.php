@@ -1,4 +1,12 @@
 <?php
+/**
+ * Bricks CSS URL Rewrite Observer.
+ *
+ * Rewrites Bricks Builder CSS and asset URLs to use CDN/S3 domain.
+ *
+ * @package NoBloat_S3_Offload
+ * @since   1.0.0
+ */
 
 namespace NBS3\Observers;
 
@@ -13,27 +21,53 @@ use NBS3\Interfaces\ObserverInterface;
  * This observer handles two types of Bricks files:
  * 1. Generated CSS files in /uploads/bricks/css/ (per-page styles)
  * 2. Static theme assets in /themes/bricks/assets/ (CSS, JS, fonts)
+ *
+ * @since 1.0.0
  */
 class BricksCssUrlRewriteObserver implements ObserverInterface {
 
-	private ?array $syncedFilesCache       = null;
-	private ?array $syncedThemeAssetsCache = null;
+	/**
+	 * Cache of synced generated CSS files.
+	 *
+	 * @since 1.0.0
+	 * @var array|null
+	 */
+	private ?array $synced_files_cache = null;
 
+	/**
+	 * Cache of synced theme assets.
+	 *
+	 * @since 1.0.0
+	 * @var array|null
+	 */
+	private ?array $synced_theme_assets_cache = null;
+
+	/**
+	 * Register the observer hooks.
+	 *
+	 * @since 1.0.0
+	 *
+	 * @return void
+	 */
 	public function register(): void {
-		// Defer registration until after theme is loaded (Bricks defines BRICKS_VERSION in theme)
-		add_action( 'after_setup_theme', array( $this, 'registerHooks' ), 20 );
+		// Defer registration until after theme is loaded (Bricks defines BRICKS_VERSION in theme).
+		add_action( 'after_setup_theme', array( $this, 'register_hooks' ), 20 );
 	}
 
 	/**
 	 * Register hooks after theme is loaded so we can detect Bricks.
+	 *
+	 * @since 1.0.0
+	 *
+	 * @return void
 	 */
-	public function registerHooks(): void {
-		// Only register if Bricks is active
+	public function register_hooks(): void {
+		// Only register if Bricks is active.
 		if ( ! nbs3_is_bricks_active() ) {
 			return;
 		}
 
-		// Check if at least one Bricks sync option is enabled
+		// Check if at least one Bricks sync option is enabled.
 		$css_sync_enabled          = nbs3_get_setting( 'sync_bricks_css', false );
 		$theme_assets_sync_enabled = nbs3_get_setting( 'sync_bricks_theme_assets', false );
 
@@ -41,48 +75,57 @@ class BricksCssUrlRewriteObserver implements ObserverInterface {
 			return;
 		}
 
-		// Get CDN/S3 domain - no point registering if not available
-		$s3Provider = new \NBS3\S3Provider();
-		if ( empty( $s3Provider->getDomain() ) ) {
+		// Get CDN/S3 domain - no point registering if not available.
+		$s3_provider = new \NBS3\S3Provider();
+		if ( empty( $s3_provider->get_domain() ) ) {
 			return;
 		}
 
-		// Bricks outputs CSS directly, so we need output buffering
-		add_action( 'template_redirect', array( $this, 'startOutputBuffer' ), 1 );
+		// Bricks outputs CSS directly, so we need output buffering.
+		add_action( 'template_redirect', array( $this, 'start_output_buffer' ), 1 );
 	}
 
 	/**
 	 * Start output buffering to catch Bricks CSS URLs.
+	 *
+	 * @since 1.0.0
+	 *
+	 * @return void
 	 */
-	public function startOutputBuffer(): void {
-		// Don't buffer admin, AJAX, or REST requests
+	public function start_output_buffer(): void {
+		// Don't buffer admin, AJAX, or REST requests.
 		if ( is_admin() || wp_doing_ajax() || ( defined( 'REST_REQUEST' ) && REST_REQUEST ) ) {
 			return;
 		}
 
-		ob_start( array( $this, 'rewriteOutputBuffer' ) );
+		ob_start( array( $this, 'rewrite_output_buffer' ) );
 	}
 
 	/**
 	 * Process the output buffer and rewrite Bricks CSS URLs.
+	 *
+	 * @since 1.0.0
+	 *
+	 * @param string $html The HTML output buffer content.
+	 * @return string The modified HTML with rewritten URLs.
 	 */
-	public function rewriteOutputBuffer( string $html ): string {
-		// Only process if we have HTML content
-		if ( empty( $html ) || strpos( $html, '</html>' ) === false ) {
+	public function rewrite_output_buffer( string $html ): string {
+		// Only process if we have HTML content.
+		if ( empty( $html ) || false === strpos( $html, '</html>' ) ) {
 			return $html;
 		}
 
-		$s3Provider = new \NBS3\S3Provider();
-		$cdn_domain = trailingslashit( $s3Provider->getDomain() );
+		$s3_provider = new \NBS3\S3Provider();
+		$cdn_domain  = trailingslashit( $s3_provider->get_domain() );
 
-		// Rewrite generated CSS files (/uploads/bricks/css/)
-		if ( nbs3_get_setting( 'sync_bricks_css', false ) && strpos( $html, '/uploads/bricks/css/' ) !== false ) {
-			$html = $this->rewriteGeneratedCssUrls( $html, $cdn_domain );
+		// Rewrite generated CSS files (/uploads/bricks/css/).
+		if ( nbs3_get_setting( 'sync_bricks_css', false ) && false !== strpos( $html, '/uploads/bricks/css/' ) ) {
+			$html = $this->rewrite_generated_css_urls( $html, $cdn_domain );
 		}
 
-		// Rewrite theme assets (/themes/bricks/assets/)
-		if ( nbs3_get_setting( 'sync_bricks_theme_assets', false ) && strpos( $html, '/themes/bricks/assets/' ) !== false ) {
-			$html = $this->rewriteThemeAssetUrls( $html, $cdn_domain );
+		// Rewrite theme assets (/themes/bricks/assets/).
+		if ( nbs3_get_setting( 'sync_bricks_theme_assets', false ) && false !== strpos( $html, '/themes/bricks/assets/' ) ) {
+			$html = $this->rewrite_theme_asset_urls( $html, $cdn_domain );
 		}
 
 		return $html;
@@ -90,26 +133,32 @@ class BricksCssUrlRewriteObserver implements ObserverInterface {
 
 	/**
 	 * Rewrite generated Bricks CSS URLs (from /uploads/bricks/css/).
+	 *
+	 * @since 1.0.0
+	 *
+	 * @param string $html       The HTML content.
+	 * @param string $cdn_domain The CDN domain with trailing slash.
+	 * @return string The HTML with rewritten CSS URLs.
 	 */
-	private function rewriteGeneratedCssUrls( string $html, string $cdn_domain ): string {
-		// Match Bricks CSS URLs in link tags
-		// Pattern matches href="...uploads/bricks/css/filename.css..."
+	private function rewrite_generated_css_urls( string $html, string $cdn_domain ): string {
+		// Match Bricks CSS URLs in link tags.
+		// Pattern matches href="...uploads/bricks/css/filename.css...".
 		$pattern = '/(href=["\'])([^"\']*\/uploads\/bricks\/css\/([a-zA-Z0-9._()-]+\.css))([^"\']*["\'])/i';
 
 		return preg_replace_callback(
 			$pattern,
 			function ( $matches ) use ( $cdn_domain ) {
-				$prefix   = $matches[1];        // href="
-				$full_url = $matches[2];      // full URL to CSS file
-				$filename = $matches[3];      // just the filename
-				$suffix   = $matches[4];        // query string + closing quote
+				$prefix   = $matches[1]; // href=".
+				$full_url = $matches[2]; // Full URL to CSS file.
+				$filename = $matches[3]; // Just the filename.
+				$suffix   = $matches[4]; // Query string + closing quote.
 
-				// Check if this file is synced
-				if ( ! $this->isFileSynced( $filename ) ) {
-					return $matches[0]; // Return unchanged
+				// Check if this file is synced.
+				if ( ! $this->is_file_synced( $filename ) ) {
+					return $matches[0]; // Return unchanged.
 				}
 
-				// Build CDN URL
+				// Build CDN URL.
 				$cdn_url = $cdn_domain . 'uploads/bricks/css/' . $filename;
 
 				return $prefix . $cdn_url . $suffix;
@@ -120,27 +169,33 @@ class BricksCssUrlRewriteObserver implements ObserverInterface {
 
 	/**
 	 * Rewrite theme asset URLs (from /themes/bricks/assets/).
+	 *
+	 * @since 1.0.0
+	 *
+	 * @param string $html       The HTML content.
+	 * @param string $cdn_domain The CDN domain with trailing slash.
+	 * @return string The HTML with rewritten asset URLs.
 	 */
-	private function rewriteThemeAssetUrls( string $html, string $cdn_domain ): string {
-		// Match theme asset URLs in href/src attributes
-		// Pattern matches href/src="...themes/bricks/assets/..."
+	private function rewrite_theme_asset_urls( string $html, string $cdn_domain ): string {
+		// Match theme asset URLs in href/src attributes.
+		// Pattern matches href/src="...themes/bricks/assets/...".
 		$pattern = '/((href|src)=["\'])([^"\']*\/themes\/bricks\/assets\/([^"\'?#]+))([^"\']*["\'])/i';
 
 		return preg_replace_callback(
 			$pattern,
 			function ( $matches ) use ( $cdn_domain ) {
-				$prefix        = $matches[1];           // href=" or src="
-				$attr          = $matches[2];             // href or src
-				$full_url      = $matches[3];         // full URL to asset
-				$relative_path = $matches[4];    // path relative to assets/ folder
-				$suffix        = $matches[5];           // query string + closing quote
+				$prefix        = $matches[1]; // href=" or src=".
+				$attr          = $matches[2]; // href or src.
+				$full_url      = $matches[3]; // Full URL to asset.
+				$relative_path = $matches[4]; // Path relative to assets/ folder.
+				$suffix        = $matches[5]; // Query string + closing quote.
 
-				// Check if this file is synced
-				if ( ! $this->isThemeAssetSynced( $relative_path ) ) {
-					return $matches[0]; // Return unchanged
+				// Check if this file is synced.
+				if ( ! $this->is_theme_asset_synced( $relative_path ) ) {
+					return $matches[0]; // Return unchanged.
 				}
 
-				// Build CDN URL
+				// Build CDN URL.
 				$cdn_url = $cdn_domain . 'themes/bricks/assets/' . $relative_path;
 
 				return $prefix . $cdn_url . $suffix;
@@ -151,25 +206,35 @@ class BricksCssUrlRewriteObserver implements ObserverInterface {
 
 	/**
 	 * Check if a generated CSS file is in the synced files list.
+	 *
+	 * @since 1.0.0
+	 *
+	 * @param string $file_name The CSS filename to check.
+	 * @return bool True if the file is synced.
 	 */
-	private function isFileSynced( string $file_name ): bool {
-		// Cache the synced files for this request
-		if ( $this->syncedFilesCache === null ) {
-			$this->syncedFilesCache = get_option( 'nbs3_synced_bricks_files', array() );
+	private function is_file_synced( string $file_name ): bool {
+		// Cache the synced files for this request.
+		if ( null === $this->synced_files_cache ) {
+			$this->synced_files_cache = get_option( 'nbs3_synced_bricks_files', array() );
 		}
 
-		return isset( $this->syncedFilesCache[ $file_name ] );
+		return isset( $this->synced_files_cache[ $file_name ] );
 	}
 
 	/**
 	 * Check if a theme asset is in the synced files list.
+	 *
+	 * @since 1.0.0
+	 *
+	 * @param string $relative_path The relative path of the asset.
+	 * @return bool True if the asset is synced.
 	 */
-	private function isThemeAssetSynced( string $relative_path ): bool {
-		// Cache the synced theme assets for this request
-		if ( $this->syncedThemeAssetsCache === null ) {
-			$this->syncedThemeAssetsCache = get_option( 'nbs3_synced_bricks_theme_assets', array() );
+	private function is_theme_asset_synced( string $relative_path ): bool {
+		// Cache the synced theme assets for this request.
+		if ( null === $this->synced_theme_assets_cache ) {
+			$this->synced_theme_assets_cache = get_option( 'nbs3_synced_bricks_theme_assets', array() );
 		}
 
-		return isset( $this->syncedThemeAssetsCache[ $relative_path ] );
+		return isset( $this->synced_theme_assets_cache[ $relative_path ] );
 	}
 }

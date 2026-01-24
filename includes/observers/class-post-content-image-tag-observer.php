@@ -1,4 +1,10 @@
 <?php
+/**
+ * Post Content Image Tag Observer.
+ *
+ * @package NoBloat_S3_Offload
+ * @since   1.0.0
+ */
 
 namespace NBS3\Observers;
 
@@ -6,14 +12,21 @@ use NBS3\S3Provider;
 use NBS3\Interfaces\ObserverInterface;
 use NBS3\Traits\OffloaderTrait;
 
+/**
+ * Observer that rewrites image tags in post content for offloaded attachments.
+ *
+ * @since 1.0.0
+ */
 class PostContentImageTagObserver implements ObserverInterface {
 
 	use OffloaderTrait;
 
 	/**
+	 * Cloud provider instance.
+	 *
 	 * @var S3Provider
 	 */
-	private S3Provider $s3Provider;
+	private S3Provider $s3_provider;
 
 	/**
 	 * The base URL for uploads.
@@ -25,10 +38,10 @@ class PostContentImageTagObserver implements ObserverInterface {
 	/**
 	 * Constructor.
 	 *
-	 * @param S3Provider $s3Provider
+	 * @param S3Provider $s3_provider The cloud provider instance.
 	 */
-	public function __construct( S3Provider $s3Provider ) {
-		$this->s3Provider = $s3Provider;
+	public function __construct( S3Provider $s3_provider ) {
+		$this->s3_provider = $s3_provider;
 	}
 
 	/**
@@ -41,14 +54,15 @@ class PostContentImageTagObserver implements ObserverInterface {
 	}
 
 	/**
-	 * Modify the image srcset.
+	 * Modify the image tag in post content.
 	 *
-	 * @param array $sources
-	 * @param array $size_array
-	 * @param array $image_src
-	 * @param array $image_meta
-	 * @param int   $attachment_id
-	 * @return array
+	 * Replaces the src attribute with the offloaded URL if the attachment
+	 * has been offloaded to cloud storage.
+	 *
+	 * @param string $filtered_image The filtered image tag HTML.
+	 * @param string $context        The context (e.g., 'the_content').
+	 * @param int    $attachment_id  The attachment ID.
+	 * @return string The modified image tag HTML.
 	 */
 	public function run( $filtered_image, $context, $attachment_id ) {
 		if ( ! $this->is_offloaded( $attachment_id ) ) {
@@ -66,6 +80,12 @@ class PostContentImageTagObserver implements ObserverInterface {
 		return $filtered_image;
 	}
 
+	/**
+	 * Extract the src attribute from an image tag.
+	 *
+	 * @param string $image_tag The image tag HTML.
+	 * @return string The src attribute value, or empty string if not found.
+	 */
 	private function get_image_src( $image_tag ) {
 		$src = '';
 

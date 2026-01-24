@@ -1,36 +1,76 @@
 <?php
+/**
+ * Media Overview admin page handler.
+ *
+ * @package NoBloat_S3_Offload
+ * @subpackage Admin
+ */
 
 namespace NBS3\Admin;
 
 use Exception;
 
+/**
+ * Class MediaOverview
+ *
+ * Handles the media overview admin page, displaying statistics about
+ * offloaded and non-offloaded media files, and providing bulk offload functionality.
+ */
 class MediaOverview {
 
+	/**
+	 * Singleton instance.
+	 *
+	 * @var MediaOverview|null
+	 */
 	private static $instance = null;
 
+	/**
+	 * Private constructor to enforce singleton pattern.
+	 */
 	private function __construct() {
 		$this->register();
 	}
 
-	public static function getInstance(): self {
-		if ( self::$instance === null ) {
+	/**
+	 * Get the singleton instance.
+	 *
+	 * @return self The singleton instance.
+	 */
+	public static function get_instance(): self {
+		if ( null === self::$instance ) {
 			self::$instance = new self();
 		}
 
 		return self::$instance;
 	}
 
+	/**
+	 * Register hooks and actions.
+	 *
+	 * @return void
+	 */
 	private function register() {
 		add_action( 'admin_menu', array( $this, 'add_menu' ) );
 		add_action( 'admin_init', array( $this, 'initialize' ) );
 		add_action( 'wp_ajax_nbs3_download_errors_csv', array( $this, 'handle_download_errors_csv' ) );
 	}
 
+	/**
+	 * Initialize the media overview page.
+	 *
+	 * @return void
+	 */
 	public function initialize() {
 		$this->add_media_overview_fields();
 		$this->add_media_overview_sections();
 	}
 
+	/**
+	 * Add the media overview submenu page.
+	 *
+	 * @return void
+	 */
 	public function add_menu() {
 		add_submenu_page(
 			'nbs3',
@@ -42,10 +82,20 @@ class MediaOverview {
 		);
 	}
 
+	/**
+	 * Render the media overview page view.
+	 *
+	 * @return void
+	 */
 	public function media_overview_page_view() {
-		nbs3_get_view( 'admin/media_overview' );
+		nbs3_get_view( 'admin/media-overview' );
 	}
 
+	/**
+	 * Add settings sections for the media overview page.
+	 *
+	 * @return void
+	 */
 	private function add_media_overview_sections() {
 		add_settings_section(
 			'media_overview',
@@ -74,6 +124,11 @@ class MediaOverview {
 		);
 	}
 
+	/**
+	 * Add settings fields for the media overview page.
+	 *
+	 * @return void
+	 */
 	private function add_media_overview_fields() {
 		add_settings_field(
 			'total_media_files',
@@ -131,6 +186,11 @@ class MediaOverview {
 		);
 	}
 
+	/**
+	 * Render the total media files field.
+	 *
+	 * @return void
+	 */
 	public function total_media_files_field() {
 		$total_attachments = wp_count_attachments();
 		$total_count       = array_sum( (array) $total_attachments );
@@ -142,6 +202,11 @@ class MediaOverview {
 		echo '<p class="description">' . esc_html__( 'Total number of media files stored on your server.', 'nobloat-s3-offload' ) . '</p>';
 	}
 
+	/**
+	 * Render the offloaded media field.
+	 *
+	 * @return void
+	 */
 	public function offloaded_media_field() {
 		$offloaded_count = nbs3_get_offloaded_media_items_count();
 
@@ -152,23 +217,28 @@ class MediaOverview {
 		echo '<p class="description">' . esc_html__( 'Number of media files successfully moved to cloud storage.', 'nobloat-s3-offload' ) . '</p>';
 	}
 
+	/**
+	 * Render the non-offloaded media field.
+	 *
+	 * @return void
+	 */
 	public function non_offloaded_media_field() {
 		$non_offloaded_count = nbs3_get_unoffloaded_media_items_count();
 
 		echo '<p class="nbs3-stat">';
 		echo '<span class="nbs3-stat-number">' . esc_html( number_format_i18n( $non_offloaded_count ) ) . ' </span>';
-		if ( $non_offloaded_count === 0 ) {
+		if ( 0 === $non_offloaded_count ) {
 			echo '<span class="nbs3-stat-label">' . esc_html__( 'Media Attachments', 'nobloat-s3-offload' ) . '</span>';
-		} elseif ( $non_offloaded_count === 1 ) {
+		} elseif ( 1 === $non_offloaded_count ) {
 			echo '<span class="nbs3-stat-label">' . esc_html__( 'Media Attachment', 'nobloat-s3-offload' ) . '</span>';
 		} else {
 			echo '<span class="nbs3-stat-label">' . esc_html__( 'Media Attachments', 'nobloat-s3-offload' ) . '</span>';
 		}
 		echo '</p>';
 
-		if ( $non_offloaded_count === 0 ) {
+		if ( 0 === $non_offloaded_count ) {
 			echo '<p class="description">' . esc_html__( 'Great job! All your media files are offloaded to cloud storage.', 'nobloat-s3-offload' ) . '</p>';
-		} elseif ( $non_offloaded_count === 1 ) {
+		} elseif ( 1 === $non_offloaded_count ) {
 			echo '<p class="description">' . esc_html__( 'There is 1 media file still stored on your local server.', 'nobloat-s3-offload' ) . '</p>';
 			echo '<p class="description">' . esc_html__( 'This file can be offloaded to free up local storage space.', 'nobloat-s3-offload' ) . '</p>';
 		} else {
@@ -176,6 +246,11 @@ class MediaOverview {
 		}
 	}
 
+	/**
+	 * Render the offload errors field.
+	 *
+	 * @return void
+	 */
 	public function offload_errors_field() {
 		$attachments_with_errors = $this->get_attachments_with_errors();
 		$count                   = count( $attachments_with_errors );
@@ -190,6 +265,11 @@ class MediaOverview {
 		}
 	}
 
+	/**
+	 * Get attachment IDs that have offload errors.
+	 *
+	 * @return array Array of attachment IDs with errors.
+	 */
 	private function get_attachments_with_errors() {
 		global $wpdb;
 		$meta_key = 'nbs3_error_log';
@@ -199,10 +279,15 @@ class MediaOverview {
 			$meta_key
 		);
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Query is prepared above, querying postmeta for specific meta_key
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Query is prepared above, querying postmeta for specific meta_key.
 		return $wpdb->get_col( $query );
 	}
 
+	/**
+	 * Handle the AJAX request to download errors as CSV.
+	 *
+	 * @return void
+	 */
 	public function handle_download_errors_csv() {
 		try {
 			if ( ! current_user_can( 'manage_options' ) ) {
@@ -223,7 +308,7 @@ class MediaOverview {
 			header( 'Content-Disposition: attachment; filename="nbs3_errors.csv"' );
 
 			$output = fopen( 'php://output', 'w' );
-			if ( $output === false ) {
+			if ( false === $output ) {
 				throw new Exception( 'Unable to create output stream.' );
 			}
 
@@ -232,7 +317,8 @@ class MediaOverview {
 			foreach ( $attachments_with_errors as $attachment_id ) {
 				$attachment = get_post( $attachment_id );
 				if ( ! $attachment ) {
-					continue; // Skip if attachment doesn't exist
+					// Skip if attachment doesn't exist.
+					continue;
 				}
 				$errors        = get_post_meta( $attachment_id, 'nbs3_error_log', true );
 				$errors_string = is_array( $errors ) ? implode( "; \n", $errors ) : $errors;
@@ -247,7 +333,7 @@ class MediaOverview {
 				);
 			}
 
-            // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Using php://output stream for CSV generation, WP_Filesystem not applicable
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Using php://output stream for CSV generation, WP_Filesystem not applicable.
 			fclose( $output );
 			exit;
 		} catch ( Exception $e ) {
@@ -256,9 +342,13 @@ class MediaOverview {
 		}
 	}
 
-
+	/**
+	 * Render the bulk offload media field.
+	 *
+	 * @return void
+	 */
 	public function bulk_offload_media_field() {
-		// WP CLI Notice
+		// WP CLI Notice.
 		echo '<div style="background: #f0f6fc; border: 1px solid #c3d4e7; border-radius: 4px; padding: 12px; margin-bottom: 20px;">';
 		echo '<p style="margin: 0 0 8px 0;"><strong style="color: #0073aa;">💡 ' . esc_html__( 'Use WP CLI for Large Operations', 'nobloat-s3-offload' ) . '</strong></p>';
 		echo '<p style="margin: 0 0 8px 0; font-size: 13px;">' . esc_html__( 'For sites with hundreds or thousands of media files, our WP CLI command offers superior performance and control:', 'nobloat-s3-offload' ) . '</p>';
@@ -270,7 +360,7 @@ class MediaOverview {
 
 		$bulk_offload_data = nbs3_get_bulk_offload_data();
 		$count             = nbs3_get_unoffloaded_media_items_count();
-		$is_offloading     = $bulk_offload_data['status'] === 'processing';
+		$is_offloading     = 'processing' === $bulk_offload_data['status'];
 		$progress          = ( $is_offloading && $bulk_offload_data['total'] > 0 ) ? ( $bulk_offload_data['processed'] / $bulk_offload_data['total'] ) * 100 : 0;
 
 		if ( $count > 0 || $is_offloading ) {
@@ -294,7 +384,7 @@ class MediaOverview {
 			$display_style  = $is_offloading ? 'block' : 'none';
 			$progress_width = $is_offloading ? $progress : 0;
 			$progress_text  = $is_offloading ? round( $progress ) . '%' : '0%';
-			if ( $is_offloading && $bulk_offload_data['total'] == 0 ) {
+			if ( $is_offloading && 0 === $bulk_offload_data['total'] ) {
 				$progress_text = __( 'Preparing...', 'nobloat-s3-offload' );
 			}
 
@@ -315,7 +405,7 @@ class MediaOverview {
 			printf( '        <div id="offload-progress" style="width: %.1f%%; height: 20px; background-color: #0073aa; border-radius: 2px; transition: width 0.5s;"></div>', esc_html( $progress_width ) );
 			echo '    </div>';
 			printf( '    <p id="progress-text" style="margin-top: 10px; font-weight: bold;">%s</p>', esc_html( $progress_text ) );
-			if ( get_option( 'nbs3_bulk_offload_cancelled' ) === false ) {
+			if ( false === get_option( 'nbs3_bulk_offload_cancelled' ) ) {
 				echo '<button type="button" id="bulk-offload-cancel-button" class="button">' . esc_html__( 'Cancel', 'nobloat-s3-offload' ) . '</button>';
 			} else {
 				echo '<p>' . esc_html__( 'Canceling the bulk offload process…', 'nobloat-s3-offload' ) . '</p>';

@@ -1,4 +1,10 @@
 <?php
+/**
+ * Offload Status Observer.
+ *
+ * @package NoBloat_S3_Offload
+ * @since   1.0.0
+ */
 
 namespace NBS3\Observers;
 
@@ -6,6 +12,11 @@ use NBS3\S3Provider;
 use NBS3\Interfaces\ObserverInterface;
 use NBS3\Traits\OffloaderTrait;
 
+/**
+ * Observer that displays the offload status on the attachment edit screen.
+ *
+ * @since 1.0.0
+ */
 class OffloadStatusObserver implements ObserverInterface {
 
 	use OffloaderTrait;
@@ -15,22 +26,36 @@ class OffloadStatusObserver implements ObserverInterface {
 	 *
 	 * @var S3Provider
 	 */
-	private S3Provider $s3Provider;
+	private S3Provider $s3_provider;
 
 	/**
-	 * Meta keys for offload information.
+	 * Meta key for offloaded timestamp.
+	 *
+	 * @var string
 	 */
 	private const META_OFFLOADED_AT = 'nbs3_offloaded_at';
-	private const META_PROVIDER     = 'nbs3_provider';
-	private const META_BUCKET       = 'nbs3_bucket';
+
+	/**
+	 * Meta key for provider name.
+	 *
+	 * @var string
+	 */
+	private const META_PROVIDER = 'nbs3_provider';
+
+	/**
+	 * Meta key for bucket name.
+	 *
+	 * @var string
+	 */
+	private const META_BUCKET = 'nbs3_bucket';
 
 	/**
 	 * Constructor.
 	 *
-	 * @param S3Provider $s3Provider The cloud provider instance.
+	 * @param S3Provider $s3_provider The cloud provider instance.
 	 */
-	public function __construct( S3Provider $s3Provider ) {
-		$this->s3Provider = $s3Provider;
+	public function __construct( S3Provider $s3_provider ) {
+		$this->s3_provider = $s3_provider;
 	}
 
 	/**
@@ -50,12 +75,12 @@ class OffloadStatusObserver implements ObserverInterface {
 	 * @return array The modified form fields.
 	 */
 	public function run( array $form_fields, \WP_Post $post ): array {
-		$status_details = $this->getOffloadStatusDetails( $post->ID );
+		$status_details = $this->get_offload_status_details( $post->ID );
 
 		$form_fields['nbs3_offload_status'] = array(
 			'label' => __( 'Offload Status:', 'nobloat-s3-offload' ),
 			'input' => 'html',
-			'html'  => $this->generateStatusHtml( $status_details ),
+			'html'  => $this->generate_status_html( $status_details ),
 		);
 
 		return $form_fields;
@@ -67,16 +92,16 @@ class OffloadStatusObserver implements ObserverInterface {
 	 * @param int $post_id The attachment post ID.
 	 * @return array The offload status details.
 	 */
-	private function getOffloadStatusDetails( int $post_id ): array {
+	private function get_offload_status_details( int $post_id ): array {
 		if ( $this->is_offloaded( $post_id ) ) {
 			return array(
-				'status' => $this->getOffloadedStatus( $post_id ),
+				'status' => $this->get_offloaded_status( $post_id ),
 				'color'  => 'green',
 			);
 		}
 
 		if ( $this->has_errors( $post_id ) ) {
-			// get url for this settings page: nbs3_media_overview
+			// Get URL for this settings page: nbs3_media_overview.
 			$media_overview_page = admin_url( 'admin.php?page=nbs3_media_overview' );
 			$status              = sprintf(
 				/* translators: %s: URL to Media Overview page */
@@ -101,7 +126,7 @@ class OffloadStatusObserver implements ObserverInterface {
 	 * @param int $post_id The attachment post ID.
 	 * @return string The formatted status message.
 	 */
-	private function getOffloadedStatus( int $post_id ): string {
+	private function get_offloaded_status( int $post_id ): string {
 		$offloaded_at = get_post_meta( $post_id, self::META_OFFLOADED_AT, true );
 		$provider     = get_post_meta( $post_id, self::META_PROVIDER, true );
 		$bucket       = get_post_meta( $post_id, self::META_BUCKET, true );
@@ -129,7 +154,7 @@ class OffloadStatusObserver implements ObserverInterface {
 	 * @param array $status_details The offload status details.
 	 * @return string The generated HTML.
 	 */
-	private function generateStatusHtml( array $status_details ): string {
+	private function generate_status_html( array $status_details ): string {
 		return sprintf(
 			'<div style="display: flex; align-items: center; height: 100%%; min-height: 30px;">
                 <span style="color: %s;">%s</span>
@@ -139,6 +164,12 @@ class OffloadStatusObserver implements ObserverInterface {
 		);
 	}
 
+	/**
+	 * Check if attachment has errors.
+	 *
+	 * @param int $attachment_id The attachment ID.
+	 * @return bool True if the attachment has errors, false otherwise.
+	 */
 	private function has_errors( int $attachment_id ): bool {
 		$errors = get_post_meta( $attachment_id, 'nbs3_error_log', true );
 		return ! empty( $errors );

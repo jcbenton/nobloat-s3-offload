@@ -1,4 +1,10 @@
 <?php
+/**
+ * AWS setup guide template.
+ *
+ * @package Nobloat_S3_Offload
+ */
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }

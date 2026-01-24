@@ -1,4 +1,10 @@
 <?php
+/**
+ * WP CLI command for reverting offloaded media back to local storage.
+ *
+ * @package NBS3
+ * @subpackage CLI
+ */
 
 namespace NBS3\CLI;
 
@@ -9,8 +15,18 @@ use NBS3\S3Provider;
  */
 class RevertCommand {
 
-	private S3Provider $s3Provider;
+	/**
+	 * S3 provider instance.
+	 *
+	 * @var S3Provider
+	 */
+	private S3Provider $s3_provider;
 
+	/**
+	 * Constructor.
+	 *
+	 * Initializes the S3 provider.
+	 */
 	public function __construct() {
 		try {
 			$bucket = nbs3_get_credential( 'bucket' );
@@ -18,7 +34,7 @@ class RevertCommand {
 				\WP_CLI::error( 'No S3 credentials configured. Please configure your S3 settings first.' );
 			}
 
-			$this->s3Provider = new S3Provider();
+			$this->s3_provider = new S3Provider();
 		} catch ( \Exception $e ) {
 			\WP_CLI::error( 'Failed to initialize S3 provider: ' . $e->getMessage() );
 		}
@@ -64,31 +80,40 @@ class RevertCommand {
 	 *     # Preview what would be reverted
 	 *     wp nbs3 revert --dry-run
 	 *
-	 * @param array $args Positional arguments.
+	 * @param array $args       Positional arguments.
 	 * @param array $assoc_args Associative arguments (flags).
+	 *
+	 * @return void
 	 */
 	public function __invoke( $args, $assoc_args ) {
 		$limit   = isset( $assoc_args['limit'] ) ? (int) $assoc_args['limit'] : 0;
 		$keep_s3 = isset( $assoc_args['keep-s3'] );
 		$dry_run = isset( $assoc_args['dry-run'] );
 
-		$attachment_ids = $this->parseAttachmentIds( $args );
+		$attachment_ids = $this->parse_attachment_ids( $args );
 
 		if ( ! empty( $attachment_ids ) ) {
-			$this->revertSpecificAttachments( $attachment_ids, $keep_s3, $dry_run );
+			$this->revert_specific_attachments( $attachment_ids, $keep_s3, $dry_run );
 		} else {
-			$this->revertAllAttachments( $limit, $keep_s3, $dry_run );
+			$this->revert_all_attachments( $limit, $keep_s3, $dry_run );
 		}
 	}
 
-	private function parseAttachmentIds( $args ) {
+	/**
+	 * Parse attachment IDs from command arguments.
+	 *
+	 * @param array $args Positional arguments from the command.
+	 *
+	 * @return array Array of attachment IDs.
+	 */
+	private function parse_attachment_ids( $args ) {
 		if ( empty( $args[0] ) ) {
 			return array();
 		}
 
 		$ids_string = $args[0];
 
-		if ( strpos( $ids_string, ',' ) !== false ) {
+		if ( false !== strpos( $ids_string, ',' ) ) {
 			$ids = explode( ',', $ids_string );
 			return array_map( 'intval', array_filter( array_map( 'trim', $ids ) ) );
 		}
@@ -97,7 +122,16 @@ class RevertCommand {
 		return $id > 0 ? array( $id ) : array();
 	}
 
-	private function revertSpecificAttachments( $attachment_ids, $keep_s3, $dry_run ) {
+	/**
+	 * Revert specific attachments by ID.
+	 *
+	 * @param array $attachment_ids Array of attachment IDs to revert.
+	 * @param bool  $keep_s3        Whether to keep files on S3 after downloading.
+	 * @param bool  $dry_run        Whether this is a dry run.
+	 *
+	 * @return void
+	 */
+	private function revert_specific_attachments( $attachment_ids, $keep_s3, $dry_run ) {
 		$total = count( $attachment_ids );
 
 		if ( $dry_run ) {
@@ -113,13 +147,13 @@ class RevertCommand {
 		foreach ( $attachment_ids as $attachment_id ) {
 			\WP_CLI::log( "Processing attachment ID {$attachment_id}..." );
 
-			if ( ! $this->attachmentExists( $attachment_id ) ) {
+			if ( ! $this->attachment_exists( $attachment_id ) ) {
 				\WP_CLI::warning( "Attachment ID {$attachment_id} not found, skipping." );
 				++$skipped;
 				continue;
 			}
 
-			if ( ! $this->isOffloaded( $attachment_id ) ) {
+			if ( ! $this->is_offloaded( $attachment_id ) ) {
 				\WP_CLI::log( "Attachment ID {$attachment_id} is not offloaded, skipping." );
 				++$skipped;
 				continue;
@@ -131,7 +165,7 @@ class RevertCommand {
 				continue;
 			}
 
-			if ( $this->revertAttachment( $attachment_id, $keep_s3 ) ) {
+			if ( $this->revert_attachment( $attachment_id, $keep_s3 ) ) {
 				\WP_CLI::success( "Successfully reverted attachment ID {$attachment_id}" );
 				++$successful;
 			} else {
@@ -140,14 +174,23 @@ class RevertCommand {
 			}
 		}
 
-		$this->displayResults( $successful, $failed, $skipped, $total, $dry_run );
+		$this->display_results( $successful, $failed, $skipped, $total, $dry_run );
 	}
 
-	private function revertAllAttachments( $limit, $keep_s3, $dry_run ) {
-		$attachment_ids = $this->getOffloadedAttachments( $limit );
+	/**
+	 * Revert all offloaded attachments.
+	 *
+	 * @param int  $limit   Maximum number of attachments to process.
+	 * @param bool $keep_s3 Whether to keep files on S3 after downloading.
+	 * @param bool $dry_run Whether this is a dry run.
+	 *
+	 * @return void
+	 */
+	private function revert_all_attachments( $limit, $keep_s3, $dry_run ) {
+		$attachment_ids = $this->get_offloaded_attachments( $limit );
 		$total          = count( $attachment_ids );
 
-		if ( $total === 0 ) {
+		if ( 0 === $total ) {
 			\WP_CLI::success( 'No offloaded attachments found to revert.' );
 			return;
 		}
@@ -178,7 +221,7 @@ class RevertCommand {
 				continue;
 			}
 
-			if ( $this->revertAttachment( $attachment_id, $keep_s3 ) ) {
+			if ( $this->revert_attachment( $attachment_id, $keep_s3 ) ) {
 				\WP_CLI::success( "Successfully reverted attachment ID {$attachment_id}" );
 				++$successful;
 			} else {
@@ -187,10 +230,17 @@ class RevertCommand {
 			}
 		}
 
-		$this->displayResults( $successful, $failed, $skipped, $total, $dry_run );
+		$this->display_results( $successful, $failed, $skipped, $total, $dry_run );
 	}
 
-	private function getOffloadedAttachments( $limit ) {
+	/**
+	 * Get offloaded attachments from the database.
+	 *
+	 * @param int $limit Maximum number of attachments to retrieve.
+	 *
+	 * @return array Array of attachment IDs.
+	 */
+	private function get_offloaded_attachments( $limit ) {
 		global $wpdb;
 
 		$query = "SELECT p.ID FROM {$wpdb->posts} p
@@ -200,15 +250,23 @@ class RevertCommand {
             ORDER BY p.post_date DESC";
 
 		if ( $limit > 0 ) {
-            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- Base query is safe, only LIMIT is parameterized
+			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- Base query is safe, only LIMIT is parameterized.
 			$query = $wpdb->prepare( $query . ' LIMIT %d', $limit );
 		}
 
-        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Complex JOIN query for CLI operations
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Complex JOIN query for CLI operations.
 		return $wpdb->get_col( $query );
 	}
 
-	private function revertAttachment( $attachment_id, $keep_s3 ) {
+	/**
+	 * Revert a single attachment from S3 to local storage.
+	 *
+	 * @param int  $attachment_id The attachment ID to revert.
+	 * @param bool $keep_s3       Whether to keep files on S3 after downloading.
+	 *
+	 * @return bool True on success, false on failure.
+	 */
+	private function revert_attachment( $attachment_id, $keep_s3 ) {
 		$attached_file = get_post_meta( $attachment_id, '_wp_attached_file', true );
 		$nbs3_path     = get_post_meta( $attachment_id, 'nbs3_path', true );
 
@@ -220,7 +278,7 @@ class RevertCommand {
 		$upload_dir = wp_upload_dir();
 		$base_dir   = $upload_dir['basedir'];
 
-		// Build the S3 key
+		// Build the S3 key.
 		$file_name = basename( $attached_file );
 		if ( ! empty( $nbs3_path ) ) {
 			$s3_key = trailingslashit( nbs3_sanitize_path( $nbs3_path ) ) . $file_name;
@@ -228,66 +286,66 @@ class RevertCommand {
 			$s3_key = $file_name;
 		}
 
-		// Local file path
+		// Local file path.
 		$local_path = trailingslashit( $base_dir ) . $attached_file;
 
-		// Ensure directory exists
+		// Ensure directory exists.
 		$local_dir = dirname( $local_path );
 		if ( ! file_exists( $local_dir ) ) {
 			wp_mkdir_p( $local_dir );
 		}
 
-		// Download main file
-		if ( ! $this->s3Provider->downloadFile( $s3_key, $local_path ) ) {
+		// Download main file.
+		if ( ! $this->s3_provider->download_file( $s3_key, $local_path ) ) {
 			\WP_CLI::warning( "Failed to download main file for attachment ID {$attachment_id}" );
 			return false;
 		}
 
 		\WP_CLI::log( "  Downloaded: {$file_name}" );
 
-		// Download thumbnail sizes
+		// Download thumbnail sizes.
 		$metadata = wp_get_attachment_metadata( $attachment_id );
 		if ( ! empty( $metadata['sizes'] ) && is_array( $metadata['sizes'] ) ) {
 			$s3_base_dir    = ! empty( $nbs3_path ) ? trailingslashit( nbs3_sanitize_path( $nbs3_path ) ) : '';
 			$local_base_dir = dirname( $local_path );
 
-			foreach ( $metadata['sizes'] as $size => $sizeinfo ) {
-				if ( empty( $sizeinfo['file'] ) ) {
+			foreach ( $metadata['sizes'] as $size => $size_info ) {
+				if ( empty( $size_info['file'] ) ) {
 					continue;
 				}
 
-				$size_file       = $sizeinfo['file'];
+				$size_file       = $size_info['file'];
 				$size_s3_key     = $s3_base_dir . $size_file;
 				$size_local_path = trailingslashit( $local_base_dir ) . $size_file;
 
-				if ( $this->s3Provider->downloadFile( $size_s3_key, $size_local_path ) ) {
+				if ( $this->s3_provider->download_file( $size_s3_key, $size_local_path ) ) {
 					\WP_CLI::log( "  Downloaded: {$size_file}" );
 				} else {
 					\WP_CLI::warning( "  Failed to download: {$size_file}" );
 				}
 			}
 
-			// Download original image if exists
+			// Download original image if exists.
 			if ( ! empty( $metadata['original_image'] ) ) {
 				$orig_s3_key     = $s3_base_dir . $metadata['original_image'];
 				$orig_local_path = trailingslashit( $local_base_dir ) . $metadata['original_image'];
 
-				if ( $this->s3Provider->downloadFile( $orig_s3_key, $orig_local_path ) ) {
+				if ( $this->s3_provider->download_file( $orig_s3_key, $orig_local_path ) ) {
 					\WP_CLI::log( "  Downloaded: {$metadata['original_image']}" );
 				}
 			}
 		}
 
-		// Delete from S3 if not keeping
+		// Delete from S3 if not keeping.
 		if ( ! $keep_s3 ) {
-			if ( $this->s3Provider->deleteAttachment( $attachment_id ) ) {
-				\WP_CLI::log( '  Deleted from S3' );
+			if ( $this->s3_provider->deleteAttachment( $attachment_id ) ) {
+				\WP_CLI::log( '  Deleted from S3.' );
 			} else {
-				\WP_CLI::warning( '  Failed to delete from S3 (files may remain in cloud)' );
+				\WP_CLI::warning( '  Failed to delete from S3 (files may remain in cloud).' );
 			}
 		}
 
-		// Clear offload metadata
+		// Clear offload metadata.
 		delete_post_meta( $attachment_id, 'nbs3_offloaded' );
 		delete_post_meta( $attachment_id, 'nbs3_path' );
 		delete_post_meta( $attachment_id, 'nbs3_provider' );
@@ -296,16 +354,41 @@ class RevertCommand {
 		return true;
 	}
 
-	private function attachmentExists( $attachment_id ) {
+	/**
+	 * Check if an attachment exists.
+	 *
+	 * @param int $attachment_id The attachment ID to check.
+	 *
+	 * @return bool True if attachment exists, false otherwise.
+	 */
+	private function attachment_exists( $attachment_id ) {
 		$post = get_post( $attachment_id );
-		return $post && $post->post_type === 'attachment';
+		return $post && 'attachment' === $post->post_type;
 	}
 
-	private function isOffloaded( $attachment_id ) {
-		return get_post_meta( $attachment_id, 'nbs3_offloaded', true ) === '1';
+	/**
+	 * Check if an attachment is offloaded.
+	 *
+	 * @param int $attachment_id The attachment ID to check.
+	 *
+	 * @return bool True if attachment is offloaded, false otherwise.
+	 */
+	private function is_offloaded( $attachment_id ) {
+		return '1' === get_post_meta( $attachment_id, 'nbs3_offloaded', true );
 	}
 
-	private function displayResults( $successful, $failed, $skipped, $total, $dry_run ) {
+	/**
+	 * Display revert operation results.
+	 *
+	 * @param int  $successful Number of successfully reverted attachments.
+	 * @param int  $failed     Number of failed attachments.
+	 * @param int  $skipped    Number of skipped attachments.
+	 * @param int  $total      Total number of attachments processed.
+	 * @param bool $dry_run    Whether this was a dry run.
+	 *
+	 * @return void
+	 */
+	private function display_results( $successful, $failed, $skipped, $total, $dry_run ) {
 		$prefix = $dry_run ? 'DRY RUN: ' : '';
 
 		if ( $successful > 0 ) {

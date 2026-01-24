@@ -1,37 +1,66 @@
 <?php
+/**
+ * Cloud Attachment Uploader Service.
+ *
+ * Handles uploading WordPress attachments to cloud storage (S3-compatible).
+ *
+ * @package NBS3
+ * @subpackage Services
+ * @since 1.0.0
+ */
 
 namespace NBS3\Services;
 
 use NBS3\S3Provider;
 use NBS3\Traits\OffloaderTrait;
 
+/**
+ * Class Cloud_Attachment_Uploader
+ *
+ * Manages the upload of WordPress media attachments to S3-compatible cloud storage.
+ *
+ * @since 1.0.0
+ */
 class CloudAttachmentUploader {
 
 	use OffloaderTrait;
 
-	private S3Provider $s3Provider;
+	/**
+	 * The S3 provider instance.
+	 *
+	 * @since 1.0.0
+	 * @var S3Provider
+	 */
+	private S3Provider $s3_provider;
 
-	public function __construct( S3Provider $s3Provider ) {
-		$this->s3Provider = $s3Provider;
+	/**
+	 * Constructor.
+	 *
+	 * @since 1.0.0
+	 * @param S3Provider $s3_provider The S3 provider instance.
+	 */
+	public function __construct( S3Provider $s3_provider ) {
+		$this->s3_provider = $s3_provider;
 	}
 
 	/**
 	 * Get all files from a size data entry, including sources for Modern Image Formats.
 	 *
-	 * @param array $sizeData The size data array from metadata.
+	 * @since 1.0.0
+	 * @param array $size_data The size data array from metadata.
 	 * @return array Array of unique file names.
 	 */
-	private function getFilesFromSizeData( array $sizeData ): array {
+	private function get_files_from_size_data( array $size_data ): array {
 		$files = array();
 
-		// Add the primary file
-		if ( ! empty( $sizeData['file'] ) ) {
-			$files[] = $sizeData['file'];
+		// Add the primary file.
+		if ( ! empty( $size_data['file'] ) ) {
+			$files[] = $size_data['file'];
 		}
 
-		// Add files from sources array (Modern Image Formats support)
-		if ( ! empty( $sizeData['sources'] ) && is_array( $sizeData['sources'] ) ) {
-			foreach ( $sizeData['sources'] as $source ) {
+		// Add files from sources array (Modern Image Formats support).
+		if ( ! empty( $size_data['sources'] ) && is_array( $size_data['sources'] ) ) {
+			foreach ( $size_data['sources'] as $source ) {
 				if ( ! empty( $source['file'] ) && ! in_array( $source['file'], $files, true ) ) {
 					$files[] = $source['file'];
 				}
@@ -44,16 +73,17 @@ class CloudAttachmentUploader {
 	/**
 	 * Get root-level source files from metadata (Modern Image Formats support).
 	 *
+	 * @since 1.0.0
 	 * @param array $metadata The attachment metadata.
 	 * @return array Array of additional source file names (excluding the main file).
 	 */
-	private function getRootSourceFiles( array $metadata ): array {
+	private function get_root_source_files( array $metadata ): array {
 		$files = array();
 
 		if ( ! empty( $metadata['sources'] ) && is_array( $metadata['sources'] ) ) {
-			$mainFile = $metadata['file'] ?? '';
+			$main_file = $metadata['file'] ?? '';
 			foreach ( $metadata['sources'] as $source ) {
-				if ( ! empty( $source['file'] ) && $source['file'] !== $mainFile ) {
+				if ( ! empty( $source['file'] ) && $source['file'] !== $main_file ) {
 					$files[] = $source['file'];
 				}
 			}
@@ -62,7 +92,14 @@ class CloudAttachmentUploader {
 		return $files;
 	}
 
-	public function uploadAttachment( int $attachment_id ): bool {
+	/**
+	 * Upload an attachment to cloud storage.
+	 *
+	 * @since 1.0.0
+	 * @param int $attachment_id The attachment ID.
+	 * @return bool True on success, false on failure.
+	 */
+	public function upload_attachment( int $attachment_id ): bool {
 		/**
 		 * Filter to determine whether an attachment should be offloaded.
 		 *
@@ -81,15 +118,23 @@ class CloudAttachmentUploader {
 			return true;
 		}
 
-		if ( $this->uploadToCloud( $attachment_id ) ) {
-			$this->updateAttachmentMetadata( $attachment_id );
+		if ( $this->upload_to_cloud( $attachment_id ) ) {
+			$this->update_attachment_metadata( $attachment_id );
 			return true;
 		}
 
 		return false;
 	}
 
-	public function uploadUpdatedAttachment( int $attachment_id, array $metadata ): bool {
+	/**
+	 * Upload an updated attachment to cloud storage.
+	 *
+	 * @since 1.0.0
+	 * @param int   $attachment_id The attachment ID.
+	 * @param array $metadata      The attachment metadata.
+	 * @return bool True on success, false on failure.
+	 */
+	public function upload_updated_attachment( int $attachment_id, array $metadata ): bool {
 		/**
 		 * Filter to determine whether an updated attachment should be re-offloaded.
 		 *
@@ -105,29 +150,29 @@ class CloudAttachmentUploader {
 		}
 
 		if ( $metadata ) {
-			$file         = get_attached_file( $attachment_id );
-			$subdir       = $this->get_attachment_subdir( $attachment_id );
-			$uploadResult = $this->s3Provider->uploadFile( $file, $subdir . wp_basename( $file ) );
+			$file          = get_attached_file( $attachment_id );
+			$subdir        = $this->get_attachment_subdir( $attachment_id );
+			$upload_result = $this->s3_provider->upload_file( $file, $subdir . wp_basename( $file ) );
 
-			if ( ! $uploadResult ) {
-				$this->logError( $attachment_id, 'Failed to upload resized main file to cloud storage.' );
+			if ( ! $upload_result ) {
+				$this->log_error( $attachment_id, 'Failed to upload resized main file to cloud storage.' );
 				return false;
 			}
 
 			if ( ! empty( $metadata['sizes'] ) && is_array( $metadata['sizes'] ) ) {
-				$metadata_sizes = $this->uniqueMetaDataSizes( $metadata['sizes'] );
+				$metadata_sizes = $this->unique_meta_data_sizes( $metadata['sizes'] );
 				foreach ( $metadata_sizes as $size => $data ) {
 					$pattern = '/\-e[0-9]+(?=\-)/';
 					if ( ! preg_match( $pattern, $data['file'] ) ) {
-                        // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging
+						// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging.
 						error_log( "{$data['file']} is not a valid size file name." );
 						continue;
 					}
-					$file         = get_attached_file( $attachment_id, true );
-					$file         = str_replace( wp_basename( $file ), $data['file'], $file );
-					$uploadResult = $this->s3Provider->uploadFile( $file, $subdir . wp_basename( $file ) );
-					if ( ! $uploadResult ) {
-						$this->logError( $attachment_id, "Failed to upload size '{$size}' to cloud storage." );
+					$file          = get_attached_file( $attachment_id, true );
+					$file          = str_replace( wp_basename( $file ), $data['file'], $file );
+					$upload_result = $this->s3_provider->upload_file( $file, $subdir . wp_basename( $file ) );
+					if ( ! $upload_result ) {
+						$this->log_error( $attachment_id, "Failed to upload size '{$size}' to cloud storage." );
 						return false;
 					}
 				}
@@ -140,12 +185,13 @@ class CloudAttachmentUploader {
 	/**
 	 * Upload regenerated thumbnails to cloud storage and handle local cleanup.
 	 *
+	 * @since 1.0.0
 	 * @param int   $attachment_id Attachment ID.
 	 * @param array $new_metadata  New attachment metadata after regeneration.
 	 * @param array $old_metadata  Old attachment metadata before regeneration.
 	 * @return bool True on success, false on failure.
 	 */
-	public function uploadRegeneratedThumbnails( int $attachment_id, array $new_metadata, array $old_metadata ): bool {
+	public function upload_regenerated_thumbnails( int $attachment_id, array $new_metadata, array $old_metadata ): bool {
 		/**
 		 * Filter to determine whether regenerated thumbnails should be offloaded.
 		 *
@@ -161,14 +207,14 @@ class CloudAttachmentUploader {
 			return false;
 		}
 
-		// Get the subdirectory for cloud storage
+		// Get the subdirectory for cloud storage.
 		$subdir = $this->get_attachment_subdir( $attachment_id );
 
-		// Get old and new sizes
+		// Get old and new sizes.
 		$old_sizes = isset( $old_metadata['sizes'] ) && is_array( $old_metadata['sizes'] ) ? $old_metadata['sizes'] : array();
 		$new_sizes = isset( $new_metadata['sizes'] ) && is_array( $new_metadata['sizes'] ) ? $new_metadata['sizes'] : array();
 
-		// Find new or changed thumbnails
+		// Find new or changed thumbnails.
 		$thumbnails_to_upload  = array();
 		$thumbnails_to_cleanup = array();
 
@@ -178,7 +224,7 @@ class CloudAttachmentUploader {
 			$sources_changed = false;
 
 			if ( ! $is_new ) {
-				// Check if file changed
+				// Check if file changed.
 				$old_file = $old_sizes[ $size_name ]['file'] ?? '';
 				$new_file = $size_data['file'] ?? '';
 
@@ -186,7 +232,7 @@ class CloudAttachmentUploader {
 					$is_changed = true;
 				}
 
-				// Check if dimensions changed
+				// Check if dimensions changed.
 				$old_width  = $old_sizes[ $size_name ]['width'] ?? 0;
 				$old_height = $old_sizes[ $size_name ]['height'] ?? 0;
 				$new_width  = $size_data['width'] ?? 0;
@@ -196,7 +242,7 @@ class CloudAttachmentUploader {
 					$is_changed = true;
 				}
 
-				// Check if sources changed (Modern Image Formats support)
+				// Check if sources changed (Modern Image Formats support).
 				$old_sources = $old_sizes[ $size_name ]['sources'] ?? array();
 				$new_sources = $size_data['sources'] ?? array();
 				if ( $old_sources !== $new_sources ) {
@@ -210,14 +256,14 @@ class CloudAttachmentUploader {
 					'data' => $size_data,
 				);
 
-				// If changed, mark old file for cleanup
+				// If changed, mark old file for cleanup.
 				if ( $is_changed && isset( $old_sizes[ $size_name ]['file'] ) ) {
 					$thumbnails_to_cleanup[] = $old_sizes[ $size_name ]['file'];
 				}
 			}
 		}
 
-		// Upload new/changed thumbnails
+		// Upload new/changed thumbnails.
 		if ( ! empty( $thumbnails_to_upload ) ) {
 			$base_file = get_attached_file( $attachment_id, true );
 			$file_dir  = trailingslashit( dirname( $base_file ) );
@@ -225,29 +271,29 @@ class CloudAttachmentUploader {
 			foreach ( $thumbnails_to_upload as $thumbnail ) {
 				$size_data = $thumbnail['data'];
 
-				// Get all files for this size, including sources (Modern Image Formats)
-				$size_files = $this->getFilesFromSizeData( $size_data );
+				// Get all files for this size, including sources (Modern Image Formats).
+				$size_files = $this->get_files_from_size_data( $size_data );
 
 				foreach ( $size_files as $size_file ) {
 					$thumbnail_file = $file_dir . $size_file;
 
-					// Only upload if file exists locally
+					// Only upload if file exists locally.
 					if ( file_exists( $thumbnail_file ) ) {
-						$uploadResult = $this->s3Provider->uploadFile( $thumbnail_file, $subdir . $size_file );
-						if ( ! $uploadResult ) {
-							$this->logError( $attachment_id, "Failed to upload regenerated thumbnail '{$thumbnail['size']}' file '{$size_file}' to cloud storage." );
-							// Continue with other thumbnails even if one fails
+						$upload_result = $this->s3_provider->upload_file( $thumbnail_file, $subdir . $size_file );
+						if ( ! $upload_result ) {
+							$this->log_error( $attachment_id, "Failed to upload regenerated thumbnail '{$thumbnail['size']}' file '{$size_file}' to cloud storage." );
+							// Continue with other thumbnails even if one fails.
 							continue;
 						}
 					} else {
-                        // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging
+						// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging.
 						error_log( "NBS3: Regenerated thumbnail file not found: {$thumbnail_file}" );
 					}
 				}
 			}
 		}
 
-		// Check for new root-level sources (Modern Image Formats support)
+		// Check for new root-level sources (Modern Image Formats support).
 		$old_root_sources     = $old_metadata['sources'] ?? array();
 		$new_root_sources     = $new_metadata['sources'] ?? array();
 		$has_new_root_sources = ( $old_root_sources !== $new_root_sources );
@@ -255,27 +301,27 @@ class CloudAttachmentUploader {
 		if ( $has_new_root_sources ) {
 			$base_file         = get_attached_file( $attachment_id, true );
 			$file_dir          = trailingslashit( dirname( $base_file ) );
-			$root_source_files = $this->getRootSourceFiles( $new_metadata );
+			$root_source_files = $this->get_root_source_files( $new_metadata );
 
 			foreach ( $root_source_files as $source_file ) {
 				$source_path = $file_dir . $source_file;
 				if ( file_exists( $source_path ) ) {
-					$uploadResult = $this->s3Provider->uploadFile( $source_path, $subdir . $source_file );
-					if ( ! $uploadResult ) {
-						$this->logError( $attachment_id, "Failed to upload root source file '{$source_file}' to cloud storage." );
-						// Continue with other files even if one fails
+					$upload_result = $this->s3_provider->upload_file( $source_path, $subdir . $source_file );
+					if ( ! $upload_result ) {
+						$this->log_error( $attachment_id, "Failed to upload root source file '{$source_file}' to cloud storage." );
+						// Continue with other files even if one fails.
 					}
 				} else {
-                    // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging
+					// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging.
 					error_log( "NBS3: Root source file not found: {$source_path}" );
 				}
 			}
 		}
 
-		// Handle local cleanup based on retention policy
-		$deleteLocalRule = $this->shouldDeleteLocal();
-		if ( $deleteLocalRule !== 0 && ( ! empty( $thumbnails_to_upload ) || $has_new_root_sources ) ) {
-			$this->deleteRegeneratedLocalThumbnails( $attachment_id, $thumbnails_to_upload, $deleteLocalRule, $has_new_root_sources ? $new_metadata : null );
+		// Handle local cleanup based on retention policy.
+		$delete_local_rule = $this->should_delete_local();
+		if ( 0 !== $delete_local_rule && ( ! empty( $thumbnails_to_upload ) || $has_new_root_sources ) ) {
+			$this->delete_regenerated_local_thumbnails( $attachment_id, $thumbnails_to_upload, $delete_local_rule, $has_new_root_sources ? $new_metadata : null );
 		}
 
 		return true;
@@ -284,31 +330,32 @@ class CloudAttachmentUploader {
 	/**
 	 * Delete regenerated thumbnail files locally based on retention policy.
 	 *
+	 * @since 1.0.0
 	 * @param int        $attachment_id        Attachment ID.
 	 * @param array      $thumbnails_to_upload Array of thumbnails that were uploaded.
-	 * @param int        $deleteLocalRule      Retention policy (1 = Smart Local Cleanup, 2 = Full Cloud Migration).
+	 * @param int        $delete_local_rule    Retention policy (1 = Smart Local Cleanup, 2 = Full Cloud Migration).
 	 * @param array|null $metadata_with_sources Optional metadata containing root sources to delete.
 	 * @return bool True on success, false on failure.
 	 */
-	private function deleteRegeneratedLocalThumbnails( int $attachment_id, array $thumbnails_to_upload, int $deleteLocalRule, ?array $metadata_with_sources = null ): bool {
+	private function delete_regenerated_local_thumbnails( int $attachment_id, array $thumbnails_to_upload, int $delete_local_rule, ?array $metadata_with_sources = null ): bool {
 		/**
 		 * Fires before regenerated thumbnail files are deleted locally.
 		 *
 		 * @param int   $attachment_id        Attachment ID.
 		 * @param array $thumbnails_to_upload Thumbnails that were uploaded.
-		 * @param int   $deleteLocalRule      Retention policy.
+		 * @param int   $delete_local_rule    Retention policy.
 		 */
-		do_action( 'nbs3_before_delete_regenerated_local_thumbnails', $attachment_id, $thumbnails_to_upload, $deleteLocalRule );
+		do_action( 'nbs3_before_delete_regenerated_local_thumbnails', $attachment_id, $thumbnails_to_upload, $delete_local_rule );
 
 		$original_file = get_attached_file( $attachment_id, true );
 		$file_dir      = trailingslashit( dirname( $original_file ) );
 
-		// For Smart Local Cleanup (1), delete only regenerated thumbnails, keep original
-		// For Full Cloud Migration (2), also delete regenerated thumbnails (original already deleted during initial offload)
-		if ( $deleteLocalRule === 1 || $deleteLocalRule === 2 ) {
+		// For Smart Local Cleanup (1), delete only regenerated thumbnails, keep original.
+		// For Full Cloud Migration (2), also delete regenerated thumbnails (original already deleted during initial offload).
+		if ( 1 === $delete_local_rule || 2 === $delete_local_rule ) {
 			foreach ( $thumbnails_to_upload as $thumbnail ) {
-				// Get all files for this size, including sources (Modern Image Formats)
-				$size_files = $this->getFilesFromSizeData( $thumbnail['data'] );
+				// Get all files for this size, including sources (Modern Image Formats).
+				$size_files = $this->get_files_from_size_data( $thumbnail['data'] );
 
 				foreach ( $size_files as $size_file ) {
 					$thumbnail_file = $file_dir . $size_file;
@@ -318,9 +365,9 @@ class CloudAttachmentUploader {
 				}
 			}
 
-			// Delete root-level source files if provided (Modern Image Formats support)
-			if ( $metadata_with_sources !== null ) {
-				$root_source_files = $this->getRootSourceFiles( $metadata_with_sources );
+			// Delete root-level source files if provided (Modern Image Formats support).
+			if ( null !== $metadata_with_sources ) {
+				$root_source_files = $this->get_root_source_files( $metadata_with_sources );
 				foreach ( $root_source_files as $source_file ) {
 					$source_path = $file_dir . $source_file;
 					if ( file_exists( $source_path ) ) {
@@ -335,37 +382,44 @@ class CloudAttachmentUploader {
 		 *
 		 * @param int   $attachment_id        Attachment ID.
 		 * @param array $thumbnails_to_upload Thumbnails that were uploaded.
-		 * @param int   $deleteLocalRule      Retention policy.
+		 * @param int   $delete_local_rule    Retention policy.
 		 */
-		do_action( 'nbs3_after_delete_regenerated_local_thumbnails', $attachment_id, $thumbnails_to_upload, $deleteLocalRule );
+		do_action( 'nbs3_after_delete_regenerated_local_thumbnails', $attachment_id, $thumbnails_to_upload, $delete_local_rule );
 
 		return true;
 	}
 
-	private function uploadToCloud( int $attachment_id ): bool {
+	/**
+	 * Upload attachment files to cloud storage.
+	 *
+	 * @since 1.0.0
+	 * @param int $attachment_id The attachment ID.
+	 * @return bool True on success, false on failure.
+	 */
+	private function upload_to_cloud( int $attachment_id ): bool {
 		/**
 		 * Fires before the attachment is uploaded to the cloud.
 		 *
 		 * This action allows developers to perform tasks or logging before
 		 * the attachment is uploaded to the cloud.
 		 *
-		 * @param int $attachment_id
+		 * @param int $attachment_id The attachment ID.
 		 */
 		do_action( 'nbs3_before_upload_to_cloud', $attachment_id );
 
-		// remove error logs related to the attachment before starting the new upload process
+		// Remove error logs related to the attachment before starting the new upload process.
 		delete_post_meta( $attachment_id, 'nbs3_error_log' );
 
 		if ( ! $this->attachment_exists_on_disk( $attachment_id ) ) {
 			return false;
 		}
 
-		$file         = get_attached_file( $attachment_id );
-		$subdir       = $this->get_attachment_subdir( $attachment_id );
-		$uploadResult = $this->s3Provider->uploadFile( $file, $subdir . wp_basename( $file ) );
+		$file          = get_attached_file( $attachment_id );
+		$subdir        = $this->get_attachment_subdir( $attachment_id );
+		$upload_result = $this->s3_provider->upload_file( $file, $subdir . wp_basename( $file ) );
 
-		if ( ! $uploadResult ) {
-			$this->logError( $attachment_id, 'Failed to upload main file to cloud storage.' );
+		if ( ! $upload_result ) {
+			$this->log_error( $attachment_id, 'Failed to upload main file to cloud storage.' );
 			return false;
 		}
 
@@ -374,19 +428,19 @@ class CloudAttachmentUploader {
 			$metadata = array();
 		}
 		if ( ! empty( $metadata['sizes'] ) && is_array( $metadata['sizes'] ) ) {
-			$metadata_sizes = $this->uniqueMetaDataSizes( $metadata['sizes'] );
+			$metadata_sizes = $this->unique_meta_data_sizes( $metadata['sizes'] );
 			$base_file      = get_attached_file( $attachment_id, true );
 			$file_dir       = trailingslashit( dirname( $base_file ) );
 
 			foreach ( $metadata_sizes as $size => $data ) {
-				// Get all files for this size, including sources (Modern Image Formats)
-				$size_files = $this->getFilesFromSizeData( $data );
+				// Get all files for this size, including sources (Modern Image Formats).
+				$size_files = $this->get_files_from_size_data( $data );
 
 				foreach ( $size_files as $size_file ) {
-					$file_path    = $file_dir . $size_file;
-					$uploadResult = $this->s3Provider->uploadFile( $file_path, $subdir . $size_file );
-					if ( ! $uploadResult ) {
-						$this->logError( $attachment_id, "Failed to upload size '{$size}' file '{$size_file}' to cloud storage." );
+					$file_path     = $file_dir . $size_file;
+					$upload_result = $this->s3_provider->upload_file( $file_path, $subdir . $size_file );
+					if ( ! $upload_result ) {
+						$this->log_error( $attachment_id, "Failed to upload size '{$size}' file '{$size_file}' to cloud storage." );
 						return false;
 					}
 				}
@@ -398,23 +452,23 @@ class CloudAttachmentUploader {
 		 *
 		 * Return false to skip uploading the original image.
 		 *
-		 * @param bool $should_upload_original_image Default true.
-		 * @param int  $attachment_id                 Attachment ID.
-		 * @param array $metadata                      Attachment metadata.
+		 * @param bool  $should_upload_original_image Default true.
+		 * @param int   $attachment_id                Attachment ID.
+		 * @param array $metadata                     Attachment metadata.
 		 */
 		$should_upload_original_image = apply_filters( 'nbs3_should_upload_original_image', true, $attachment_id, $metadata );
 
 		if ( $should_upload_original_image && ! empty( $metadata['original_image'] ) ) {
 			$original_image = wp_get_original_image_path( $attachment_id );
-			$uploadResult   = $this->s3Provider->uploadFile( $original_image, $subdir . wp_basename( $original_image ) );
-			if ( ! $uploadResult ) {
-				$this->logError( $attachment_id, 'Failed to upload original image to cloud storage.' );
+			$upload_result  = $this->s3_provider->upload_file( $original_image, $subdir . wp_basename( $original_image ) );
+			if ( ! $upload_result ) {
+				$this->log_error( $attachment_id, 'Failed to upload original image to cloud storage.' );
 				return false;
 			}
 		}
 
-		// Upload root-level source files (Modern Image Formats support)
-		$root_source_files = $this->getRootSourceFiles( $metadata );
+		// Upload root-level source files (Modern Image Formats support).
+		$root_source_files = $this->get_root_source_files( $metadata );
 		if ( ! empty( $root_source_files ) ) {
 			$main_file = get_attached_file( $attachment_id, true );
 			$file_dir  = trailingslashit( dirname( $main_file ) );
@@ -422,18 +476,18 @@ class CloudAttachmentUploader {
 			foreach ( $root_source_files as $source_file ) {
 				$source_path = $file_dir . $source_file;
 				if ( file_exists( $source_path ) ) {
-					$uploadResult = $this->s3Provider->uploadFile( $source_path, $subdir . $source_file );
-					if ( ! $uploadResult ) {
-						$this->logError( $attachment_id, "Failed to upload source file '{$source_file}' to cloud storage." );
+					$upload_result = $this->s3_provider->upload_file( $source_path, $subdir . $source_file );
+					if ( ! $upload_result ) {
+						$this->log_error( $attachment_id, "Failed to upload source file '{$source_file}' to cloud storage." );
 						return false;
 					}
 				}
 			}
 		}
 
-		$deleteLocalRule = $this->shouldDeleteLocal();
-		if ( $deleteLocalRule !== 0 ) {
-			$this->deleteLocalFile( $attachment_id, $deleteLocalRule );
+		$delete_local_rule = $this->should_delete_local();
+		if ( 0 !== $delete_local_rule ) {
+			$this->delete_local_file( $attachment_id, $delete_local_rule );
 		}
 
 		/**
@@ -442,36 +496,59 @@ class CloudAttachmentUploader {
 		 * This action allows developers to perform additional tasks or logging after
 		 * the attachment has been uploaded to the cloud.
 		 *
-		 * @param int $attachment_id    The ID of the attachment that was processed.
+		 * @param int $attachment_id The ID of the attachment that was processed.
 		 */
 		do_action( 'nbs3_after_upload_to_cloud', $attachment_id );
 
 		return true;
 	}
 
-	private function logError( int $attachment_id, string $specificError ): void {
-		$generalError = $specificError . ' Please review your Cloud provider credentials or connection settings. For more details, enable debug.log and check the logs.';
+	/**
+	 * Log an error for the attachment.
+	 *
+	 * @since 1.0.0
+	 * @param int    $attachment_id  The attachment ID.
+	 * @param string $specific_error The specific error message.
+	 * @return void
+	 */
+	private function log_error( int $attachment_id, string $specific_error ): void {
+		$general_error = $specific_error . ' Please review your Cloud provider credentials or connection settings. For more details, enable debug.log and check the logs.';
 
-		$errorLog = get_post_meta( $attachment_id, 'nbs3_error_log', true );
-		if ( ! is_array( $errorLog ) ) {
-			$errorLog = array();
+		$error_log = get_post_meta( $attachment_id, 'nbs3_error_log', true );
+		if ( ! is_array( $error_log ) ) {
+			$error_log = array();
 		}
 
-		$errorLog[] = $generalError;
+		$error_log[] = $general_error;
 
-		update_post_meta( $attachment_id, 'nbs3_error_log', $errorLog );
+		update_post_meta( $attachment_id, 'nbs3_error_log', $error_log );
 		update_post_meta( $attachment_id, 'nbs3_offloaded', false );
 	}
 
-	private function updateAttachmentMetadata( int $attachment_id ): void {
+	/**
+	 * Update attachment metadata after successful upload.
+	 *
+	 * @since 1.0.0
+	 * @param int $attachment_id The attachment ID.
+	 * @return void
+	 */
+	private function update_attachment_metadata( int $attachment_id ): void {
 		update_post_meta( $attachment_id, 'nbs3_path', $this->get_attachment_subdir( $attachment_id ) );
 		update_post_meta( $attachment_id, 'nbs3_offloaded', true );
 		update_post_meta( $attachment_id, 'nbs3_offloaded_at', time() );
-		update_post_meta( $attachment_id, 'nbs3_provider', $this->s3Provider->getProviderName() );
-		update_post_meta( $attachment_id, 'nbs3_bucket', $this->s3Provider->getBucket() );
+		update_post_meta( $attachment_id, 'nbs3_provider', $this->s3_provider->get_provider_name() );
+		update_post_meta( $attachment_id, 'nbs3_bucket', $this->s3_provider->get_bucket() );
 	}
 
-	private function deleteLocalFile( int $attachment_id, int $deleteLocalRule ): bool {
+	/**
+	 * Delete local file(s) after successful cloud upload.
+	 *
+	 * @since 1.0.0
+	 * @param int $attachment_id    The attachment ID.
+	 * @param int $delete_local_rule The deletion rule (1 = Smart Local Cleanup, 2 = Full Cloud Migration).
+	 * @return bool True on success, false on failure.
+	 */
+	private function delete_local_file( int $attachment_id, int $delete_local_rule ): bool {
 		/**
 		 * Fires before the local file(s) associated with an attachment are deleted.
 		 *
@@ -479,16 +556,16 @@ class CloudAttachmentUploader {
 		 * the local files are removed following a successful cloud upload.
 		 *
 		 * @param int $attachment_id    The ID of the attachment to be processed.
-		 * @param int $deleteLocalRule  The rule to be applied for local file deletion:
-		 *                              1 - Delete only sized images, keep original.
-		 *                              2 - Delete all local files including the original.
+		 * @param int $delete_local_rule The rule to be applied for local file deletion:
+		 *                               1 - Delete only sized images, keep original.
+		 *                               2 - Delete all local files including the original.
 		 */
-		do_action( 'nbs3_before_delete_local_file', $attachment_id, $deleteLocalRule );
+		do_action( 'nbs3_before_delete_local_file', $attachment_id, $delete_local_rule );
 
 		$original_file = get_attached_file( $attachment_id, true );
 
 		if ( ! file_exists( $original_file ) ) {
-            // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging
+			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging.
 			error_log( "NBS3: Original file not found for deletion: $original_file" );
 			return false;
 		}
@@ -498,8 +575,8 @@ class CloudAttachmentUploader {
 
 		if ( isset( $metadata['sizes'] ) && is_array( $metadata['sizes'] ) ) {
 			foreach ( $metadata['sizes'] as $size => $sizeinfo ) {
-				// Get all files for this size, including sources (Modern Image Formats)
-				$size_files = $this->getFilesFromSizeData( $sizeinfo );
+				// Get all files for this size, including sources (Modern Image Formats).
+				$size_files = $this->get_files_from_size_data( $sizeinfo );
 
 				foreach ( $size_files as $size_file ) {
 					$sized_file = $file_dir . $size_file;
@@ -510,17 +587,17 @@ class CloudAttachmentUploader {
 			}
 		}
 
-		if ( $deleteLocalRule === 2 ) {
+		if ( 2 === $delete_local_rule ) {
 			wp_delete_file( $original_file );
 
-			// Handle original image if exists (For scaled or processed images)
+			// Handle original image if exists (for scaled or processed images).
 			if ( ! empty( $metadata['original_image'] ) ) {
 				$original_image_path = wp_get_original_image_path( $attachment_id );
 				wp_delete_file( $original_image_path );
 			}
 
-			// Delete root-level source files (Modern Image Formats support)
-			$root_source_files = $this->getRootSourceFiles( $metadata );
+			// Delete root-level source files (Modern Image Formats support).
+			$root_source_files = $this->get_root_source_files( $metadata );
 			foreach ( $root_source_files as $source_file ) {
 				$source_path = $file_dir . $source_file;
 				if ( file_exists( $source_path ) ) {
@@ -529,7 +606,7 @@ class CloudAttachmentUploader {
 			}
 		}
 
-		update_post_meta( $attachment_id, 'nbs3_retention_policy', $deleteLocalRule );
+		update_post_meta( $attachment_id, 'nbs3_retention_policy', $delete_local_rule );
 
 		/**
 		 * Fires after the local file(s) associated with an attachment have been deleted.
@@ -538,27 +615,34 @@ class CloudAttachmentUploader {
 		 * the local files have been removed following a successful cloud upload.
 		 *
 		 * @param int $attachment_id    The ID of the attachment that was processed.
-		 * @param int $deleteLocalRule  The rule applied for local file deletion:
-		 *                              1 - Delete only sized images, keep original.
-		 *                              2 - Delete all local files including the original.
+		 * @param int $delete_local_rule The rule applied for local file deletion:
+		 *                               1 - Delete only sized images, keep original.
+		 *                               2 - Delete all local files including the original.
 		 */
-		do_action( 'nbs3_after_delete_local_file', $attachment_id, $deleteLocalRule );
+		do_action( 'nbs3_after_delete_local_file', $attachment_id, $delete_local_rule );
 
 		return true;
 	}
 
+	/**
+	 * Check if the attachment exists on disk.
+	 *
+	 * @since 1.0.0
+	 * @param int $attachment_id The attachment ID.
+	 * @return bool True if the attachment exists on disk, false otherwise.
+	 */
 	protected function attachment_exists_on_disk( $attachment_id ) {
 		$errors = array();
 
-		// Get the full path to the attachment file
+		// Get the full path to the attachment file.
 		$file_path = get_attached_file( $attachment_id );
 
-		// Check if the main file exists
+		// Check if the main file exists.
 		if ( ! file_exists( $file_path ) ) {
 			$errors[] = "Main file does not exist: {$file_path}";
 		}
 
-		// If it's an image, check all sizes
+		// If it's an image, check all sizes.
 		if ( wp_attachment_is_image( $attachment_id ) ) {
 			$metadata = wp_get_attachment_metadata( $attachment_id );
 			if ( ! empty( $metadata['sizes'] ) ) {
@@ -575,7 +659,7 @@ class CloudAttachmentUploader {
 			}
 		}
 
-		// Save errors to post meta
+		// Save errors to post meta.
 		if ( ! empty( $errors ) ) {
 			$existing_errors = get_post_meta( $attachment_id, 'nbs3_error_log', true );
 			if ( ! is_array( $existing_errors ) ) {
@@ -584,11 +668,11 @@ class CloudAttachmentUploader {
 			$updated_errors = array_merge( $existing_errors, $errors );
 			update_post_meta( $attachment_id, 'nbs3_error_log', $updated_errors );
 		} else {
-			// If there are no errors, remove any existing error log
+			// If there are no errors, remove any existing error log.
 			delete_post_meta( $attachment_id, 'nbs3_error_log' );
 		}
 
-		// Return true if no errors, false otherwise
+		// Return true if no errors, false otherwise.
 		return empty( $errors );
 	}
 }

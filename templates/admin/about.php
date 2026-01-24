@@ -1,4 +1,10 @@
 <?php
+/**
+ * About page template.
+ *
+ * @package Nobloat_S3_Offload
+ */
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }

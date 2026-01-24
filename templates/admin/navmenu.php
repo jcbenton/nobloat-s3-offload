@@ -1,7 +1,18 @@
 <?php
+/**
+ * Admin navigation menu template.
+ *
+ * @package Nobloat_S3_Offload
+ */
 
 declare(strict_types=1);
 
+/**
+ * Get the admin page URL for a given page slug.
+ *
+ * @param string $page The page slug.
+ * @return string The admin page URL.
+ */
 function nbs3_get_admin_page_url( string $page ): string {
 	return get_admin_url( null, "admin.php?page={$page}" );
 }
@@ -29,6 +40,13 @@ $nbs3_menu_items = array(
 	),
 );
 
+/**
+ * Generate a menu item HTML element.
+ *
+ * @param array  $item The menu item data with 'title' and 'url' keys.
+ * @param string $page The page slug to check if active.
+ * @return string The HTML for the menu item.
+ */
 function nbs3_generate_menu_item( array $item, string $page ): string {
 	$class = nbs3_is_settings_page( $page ) ? 'active' : '';
 	return sprintf(
@@ -44,7 +62,7 @@ function nbs3_generate_menu_item( array $item, string $page ): string {
 	<nav>
 		<?php foreach ( $nbs3_menu_items as $nbs3_slug => $nbs3_item ) : ?>
 			<?php
-            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- nbs3_generate_menu_item() escapes internally
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- nbs3_generate_menu_item() escapes internally.
 			echo nbs3_generate_menu_item( $nbs3_item, $nbs3_slug );
 			?>
 		<?php endforeach; ?>

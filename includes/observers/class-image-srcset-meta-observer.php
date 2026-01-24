@@ -1,4 +1,10 @@
 <?php
+/**
+ * Image Srcset Meta Observer.
+ *
+ * @package NoBloat_S3_Offload
+ * @since   1.0.0
+ */
 
 namespace NBS3\Observers;
 
@@ -6,14 +12,24 @@ use NBS3\S3Provider;
 use NBS3\Interfaces\ObserverInterface;
 use NBS3\Traits\OffloaderTrait;
 
+/**
+ * Observer that modifies image srcset metadata for offloaded attachments.
+ *
+ * Appends the object version to file names in the srcset metadata to ensure
+ * proper cache busting when images are updated.
+ *
+ * @since 1.0.0
+ */
 class ImageSrcsetMetaObserver implements ObserverInterface {
 
 	use OffloaderTrait;
 
 	/**
+	 * Cloud provider instance.
+	 *
 	 * @var S3Provider
 	 */
-	private S3Provider $s3Provider;
+	private S3Provider $s3_provider;
 
 	/**
 	 * The base URL for uploads.
@@ -25,10 +41,10 @@ class ImageSrcsetMetaObserver implements ObserverInterface {
 	/**
 	 * Constructor.
 	 *
-	 * @param S3Provider $s3Provider
+	 * @param S3Provider $s3_provider The cloud provider instance.
 	 */
-	public function __construct( S3Provider $s3Provider ) {
-		$this->s3Provider = $s3Provider;
+	public function __construct( S3Provider $s3_provider ) {
+		$this->s3_provider = $s3_provider;
 	}
 
 	/**
@@ -41,11 +57,14 @@ class ImageSrcsetMetaObserver implements ObserverInterface {
 	}
 
 	/**
-	 * Calculates the image source set metadata by appending the object version to the file names of the image sizes if enabled.
+	 * Modify the image srcset metadata.
 	 *
-	 * @param array  $image_meta The metadata of the image.
-	 * @param array  $size_array The array of sizes for the image.
-	 * @param string $image_src The source URL of the image.
+	 * Appends the object version to the file names of the image sizes if the
+	 * attachment has been offloaded.
+	 *
+	 * @param array  $image_meta    The metadata of the image.
+	 * @param array  $size_array    The array of sizes for the image.
+	 * @param string $image_src     The source URL of the image.
 	 * @param int    $attachment_id The ID of the attachment.
 	 * @return array The modified image metadata with updated sizes.
 	 */
@@ -57,7 +76,7 @@ class ImageSrcsetMetaObserver implements ObserverInterface {
 
 		$object_version = $this->get_object_version( $attachment_id );
 
-		// Check if ['sizes] is set and is an array. Bug reported by a user
+		// Check if ['sizes'] is set and is an array. Bug reported by a user.
 		$image_sizes = isset( $image_meta['sizes'] ) && is_array( $image_meta['sizes'] ) ? $image_meta['sizes'] : array();
 
 		$image_sizes = array_map(

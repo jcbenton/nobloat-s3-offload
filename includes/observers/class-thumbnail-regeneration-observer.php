@@ -1,4 +1,12 @@
 <?php
+/**
+ * Thumbnail Regeneration Observer.
+ *
+ * Handles re-uploading of regenerated thumbnails to cloud storage.
+ *
+ * @package NoBloat_S3_Offload
+ * @since   1.0.0
+ */
 
 namespace NBS3\Observers;
 
@@ -7,39 +15,80 @@ use NBS3\Interfaces\ObserverInterface;
 use NBS3\Services\CloudAttachmentUploader;
 use NBS3\Traits\OffloaderTrait;
 
+/**
+ * Observer class that detects thumbnail regeneration and uploads new thumbnails.
+ *
+ * When an already-offloaded attachment has its thumbnails regenerated (e.g., via
+ * a plugin like Regenerate Thumbnails), this observer detects the metadata changes
+ * and uploads the new thumbnails to cloud storage.
+ *
+ * @since 1.0.0
+ */
 class ThumbnailRegenerationObserver implements ObserverInterface {
 
 	use OffloaderTrait;
 
 	/**
+	 * The S3 provider instance for cloud operations.
+	 *
+	 * @since 1.0.0
 	 * @var S3Provider
 	 */
-	private S3Provider $s3Provider;
+	private S3Provider $s3_provider;
 
-	private CloudAttachmentUploader $cloudAttachmentUploader;
+	/**
+	 * The cloud attachment uploader service.
+	 *
+	 * @since 1.0.0
+	 * @var CloudAttachmentUploader
+	 */
+	private CloudAttachmentUploader $cloud_attachment_uploader;
 
-	public function __construct( S3Provider $s3Provider ) {
-		$this->s3Provider              = $s3Provider;
-		$this->cloudAttachmentUploader = new CloudAttachmentUploader( $s3Provider );
+	/**
+	 * Constructor.
+	 *
+	 * @since 1.0.0
+	 *
+	 * @param S3Provider $s3_provider The S3 provider instance.
+	 */
+	public function __construct( S3Provider $s3_provider ) {
+		$this->s3_provider               = $s3_provider;
+		$this->cloud_attachment_uploader = new CloudAttachmentUploader( $s3_provider );
 	}
 
+	/**
+	 * Register the observer hooks.
+	 *
+	 * @since 1.0.0
+	 *
+	 * @return void
+	 */
 	public function register(): void {
-		// Priority 98 to run before AttachmentUpdateObserver (priority 99)
+		// Priority 98 to run before AttachmentUpdateObserver (priority 99).
 		add_filter( 'wp_update_attachment_metadata', array( $this, 'run' ), 98, 2 );
 	}
 
+	/**
+	 * Handle attachment metadata update for thumbnail regeneration.
+	 *
+	 * @since 1.0.0
+	 *
+	 * @param array|mixed $metadata      The attachment metadata.
+	 * @param int         $attachment_id The attachment ID.
+	 * @return array|mixed The unmodified metadata.
+	 */
 	public function run( $metadata, $attachment_id ) {
-		// Only process if attachment is already offloaded
+		// Only process if attachment is already offloaded.
 		if ( ! $this->is_offloaded( $attachment_id ) ) {
 			return $metadata;
 		}
 
-		// Only process image attachments
+		// Only process image attachments.
 		if ( ! wp_attachment_is_image( $attachment_id ) ) {
 			return $metadata;
 		}
 
-		// Check if auto-offload is enabled in settings
+		// Check if auto-offload is enabled in settings.
 		$options              = get_option( 'nbs3_settings', array() );
 		$auto_offload_enabled = isset( $options['auto_offload_uploads'] ) ? (int) $options['auto_offload_uploads'] : 1;
 
@@ -53,6 +102,8 @@ class ThumbnailRegenerationObserver implements ObserverInterface {
 		 * Return false to skip offloading this attachment. Useful for
 		 * conditional rules (file type, size, user role, taxonomy, etc.).
 		 *
+		 * @since 1.0.0
+		 *
 		 * @param bool $should_offload Default true.
 		 * @param int  $attachment_id  Attachment ID.
 		 */
@@ -61,13 +112,13 @@ class ThumbnailRegenerationObserver implements ObserverInterface {
 			return $metadata;
 		}
 
-		// Get old metadata to compare
+		// Get old metadata to compare.
 		$old_metadata = wp_get_attachment_metadata( $attachment_id );
 
-		// Check if this is a thumbnail regeneration by comparing sizes and sources
-		if ( $this->hasMetadataChanges( $old_metadata, $metadata ) ) {
-			// Upload regenerated thumbnails and handle local cleanup
-			$this->cloudAttachmentUploader->uploadRegeneratedThumbnails( $attachment_id, $metadata, $old_metadata );
+		// Check if this is a thumbnail regeneration by comparing sizes and sources.
+		if ( $this->has_metadata_changes( $old_metadata, $metadata ) ) {
+			// Upload regenerated thumbnails and handle local cleanup.
+			$this->cloud_attachment_uploader->upload_regenerated_thumbnails( $attachment_id, $metadata, $old_metadata );
 		}
 
 		return $metadata;
@@ -78,24 +129,26 @@ class ThumbnailRegenerationObserver implements ObserverInterface {
 	 *
 	 * Detects new thumbnails, changed dimensions, and Modern Image Format sources.
 	 *
+	 * @since 1.0.0
+	 *
 	 * @param array|false $old_metadata Old attachment metadata.
 	 * @param array       $new_metadata New attachment metadata.
 	 * @return bool True if changes were detected that need uploading.
 	 */
-	private function hasMetadataChanges( $old_metadata, $new_metadata ): bool {
-		// If no old metadata, this is likely a new upload, not regeneration
+	private function has_metadata_changes( $old_metadata, $new_metadata ): bool {
+		// If no old metadata, this is likely a new upload, not regeneration.
 		if ( ! $old_metadata || ! is_array( $old_metadata ) ) {
 			return false;
 		}
 
-		// Check for root-level sources changes (Modern Image Formats)
+		// Check for root-level sources changes (Modern Image Formats).
 		$old_root_sources = $old_metadata['sources'] ?? array();
 		$new_root_sources = $new_metadata['sources'] ?? array();
 		if ( $old_root_sources !== $new_root_sources ) {
 			return true;
 		}
 
-		// If no sizes in new metadata, nothing more to process
+		// If no sizes in new metadata, nothing more to process.
 		if ( empty( $new_metadata['sizes'] ) || ! is_array( $new_metadata['sizes'] ) ) {
 			return false;
 		}
@@ -103,14 +156,14 @@ class ThumbnailRegenerationObserver implements ObserverInterface {
 		$old_sizes = isset( $old_metadata['sizes'] ) && is_array( $old_metadata['sizes'] ) ? $old_metadata['sizes'] : array();
 		$new_sizes = $new_metadata['sizes'];
 
-		// Check if any new sizes were added or existing sizes were changed
+		// Check if any new sizes were added or existing sizes were changed.
 		foreach ( $new_sizes as $size_name => $size_data ) {
-			// New size that didn't exist before
+			// New size that did not exist before.
 			if ( ! isset( $old_sizes[ $size_name ] ) ) {
 				return true;
 			}
 
-			// Size exists but file changed (regenerated)
+			// Size exists but file changed (regenerated).
 			$old_file = $old_sizes[ $size_name ]['file'] ?? '';
 			$new_file = $size_data['file'] ?? '';
 
@@ -118,7 +171,7 @@ class ThumbnailRegenerationObserver implements ObserverInterface {
 				return true;
 			}
 
-			// Check if dimensions changed (might indicate regeneration)
+			// Check if dimensions changed (might indicate regeneration).
 			$old_width  = $old_sizes[ $size_name ]['width'] ?? 0;
 			$old_height = $old_sizes[ $size_name ]['height'] ?? 0;
 			$new_width  = $size_data['width'] ?? 0;
@@ -128,7 +181,7 @@ class ThumbnailRegenerationObserver implements ObserverInterface {
 				return true;
 			}
 
-			// Check if sources changed (Modern Image Formats support)
+			// Check if sources changed (Modern Image Formats support).
 			$old_sources = $old_sizes[ $size_name ]['sources'] ?? array();
 			$new_sources = $size_data['sources'] ?? array();
 			if ( $old_sources !== $new_sources ) {
