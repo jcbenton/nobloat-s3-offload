@@ -1,9 +1,12 @@
 {
 	"type": "wordpress-plugin",
 	"autoload": {
-		"psr-4": {
-			"NBS3\\": "includes/"
-		}
+		"classmap": [
+			"includes/"
+		],
+		"files": [
+			"includes/functions.php"
+		]
 	},
 	"require": {
 		"aws/aws-sdk-php": "^3.331.0"
