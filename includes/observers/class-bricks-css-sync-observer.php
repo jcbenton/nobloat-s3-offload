@@ -8,6 +8,8 @@
 
 namespace NBS3\Observers;
 
+defined( 'ABSPATH' ) || exit;
+
 use NBS3\S3Provider;
 use NBS3\Interfaces\ObserverInterface;
 use NBS3\Services\BricksCssSyncService;
@@ -74,7 +76,7 @@ class BricksCssSyncObserver implements ObserverInterface {
 		$sync_service = $this->get_sync_service();
 
 		// Sync the file to S3.
-		$result = $sync_service->syncFile( $file_name );
+		$result = $sync_service->sync_file( $file_name );
 
 		if ( $result ) {
 			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional debug logging for sync operations.

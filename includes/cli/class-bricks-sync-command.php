@@ -8,6 +8,8 @@
 
 namespace NBS3\CLI;
 
+defined( 'ABSPATH' ) || exit;
+
 use NBS3\S3Provider;
 use NBS3\Services\BricksCssSyncService;
 use NBS3\Services\BricksThemeAssetsSyncService;
@@ -134,7 +136,7 @@ class BricksSyncCommand {
 	private function show_status( bool $show_css, bool $show_assets ): void {
 		if ( $show_css ) {
 			$css_service = $this->get_css_sync_service();
-			$css_status  = $css_service->getStatus();
+			$css_status  = $css_service->get_status();
 
 			\WP_CLI::log( 'Bricks CSS Sync Status:' );
 			\WP_CLI::log( sprintf( '  Total local files: %d', $css_status['total'] ) );
@@ -149,7 +151,7 @@ class BricksSyncCommand {
 
 		if ( $show_assets || $assets_setting ) {
 			$assets_service = $this->get_theme_assets_sync_service();
-			$assets_status  = $assets_service->getStatus();
+			$assets_status  = $assets_service->get_status();
 
 			\WP_CLI::log( '' );
 			\WP_CLI::log( 'Bricks Theme Assets Sync Status:' );
@@ -183,7 +185,7 @@ class BricksSyncCommand {
 			\WP_CLI::log( 'Starting Bricks CSS sync...' );
 
 			$css_service = $this->get_css_sync_service();
-			$local_files = $css_service->scanLocalFiles();
+			$local_files = $css_service->scan_local_files();
 			$total       = count( $local_files );
 
 			if ( 0 === $total ) {
@@ -191,7 +193,7 @@ class BricksSyncCommand {
 			} else {
 				\WP_CLI::log( sprintf( 'Found %d local CSS files.', $total ) );
 
-				$result          = $css_service->fullSync();
+				$result          = $css_service->full_sync();
 				$total_uploaded += $result['uploaded'];
 				$total_deleted  += $result['deleted'];
 				$total_errors   += $result['errors'];
@@ -210,7 +212,7 @@ class BricksSyncCommand {
 			\WP_CLI::log( 'Starting Bricks theme assets sync...' );
 
 			$assets_service = $this->get_theme_assets_sync_service();
-			$local_files    = $assets_service->scanLocalFiles();
+			$local_files    = $assets_service->scan_local_files();
 			$total          = count( $local_files );
 
 			if ( 0 === $total ) {
@@ -218,7 +220,7 @@ class BricksSyncCommand {
 			} else {
 				\WP_CLI::log( sprintf( 'Found %d local theme asset files.', $total ) );
 
-				$result          = $assets_service->fullSync();
+				$result          = $assets_service->full_sync();
 				$total_uploaded += $result['uploaded'];
 				$total_deleted  += $result['deleted'];
 				$total_errors   += $result['errors'];
@@ -272,12 +274,12 @@ class BricksSyncCommand {
 
 		if ( $remove_css ) {
 			$css_service = $this->get_css_sync_service();
-			$css_count   = count( $css_service->getSyncedFiles() );
+			$css_count   = count( $css_service->get_synced_files() );
 		}
 
 		if ( $remove_assets ) {
 			$assets_service = $this->get_theme_assets_sync_service();
-			$assets_count   = count( $assets_service->getSyncedFiles() );
+			$assets_count   = count( $assets_service->get_synced_files() );
 		}
 
 		$total_count = $css_count + $assets_count;

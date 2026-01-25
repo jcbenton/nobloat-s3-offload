@@ -8,6 +8,8 @@
 
 namespace NBS3\CLI;
 
+defined( 'ABSPATH' ) || exit;
+
 use NBS3\Services\CloudAttachmentUploader;
 use NBS3\S3Provider;
 use NBS3\Traits\OffloaderTrait;
@@ -230,29 +232,71 @@ class OffloadCommand {
 		$limit = absint( $limit );
 
 		if ( $skip_failed ) {
-			$query = "SELECT p.ID FROM {$wpdb->posts} p
-                LEFT JOIN {$wpdb->postmeta} pm1 ON p.ID = pm1.post_id AND pm1.meta_key = 'nbs3_offloaded'
-                LEFT JOIN {$wpdb->postmeta} pm2 ON p.ID = pm2.post_id AND pm2.meta_key = 'nbs3_error_log'
-                WHERE p.post_type = 'attachment'
-                AND (pm1.meta_value IS NULL OR pm1.meta_value = '')
-                AND pm2.meta_id IS NULL
-                ORDER BY p.post_date ASC";
-
 			if ( $limit > 0 ) {
-				// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- Base query is safe, only LIMIT is parameterized.
-				$query = $wpdb->prepare( $query . ' LIMIT %d', $limit );
+				$query = $wpdb->prepare(
+					'SELECT p.ID FROM %i p
+					LEFT JOIN %i pm1 ON p.ID = pm1.post_id AND pm1.meta_key = %s
+					LEFT JOIN %i pm2 ON p.ID = pm2.post_id AND pm2.meta_key = %s
+					WHERE p.post_type = %s
+					AND (pm1.meta_value IS NULL OR pm1.meta_value = %s)
+					AND pm2.meta_id IS NULL
+					ORDER BY p.post_date ASC
+					LIMIT %d',
+					$wpdb->posts,
+					$wpdb->postmeta,
+					'nbs3_offloaded',
+					$wpdb->postmeta,
+					'nbs3_error_log',
+					'attachment',
+					'',
+					$limit
+				);
+			} else {
+				$query = $wpdb->prepare(
+					'SELECT p.ID FROM %i p
+					LEFT JOIN %i pm1 ON p.ID = pm1.post_id AND pm1.meta_key = %s
+					LEFT JOIN %i pm2 ON p.ID = pm2.post_id AND pm2.meta_key = %s
+					WHERE p.post_type = %s
+					AND (pm1.meta_value IS NULL OR pm1.meta_value = %s)
+					AND pm2.meta_id IS NULL
+					ORDER BY p.post_date ASC',
+					$wpdb->posts,
+					$wpdb->postmeta,
+					'nbs3_offloaded',
+					$wpdb->postmeta,
+					'nbs3_error_log',
+					'attachment',
+					''
+				);
 			}
+		} elseif ( $limit > 0 ) {
+				$query = $wpdb->prepare(
+					'SELECT p.ID FROM %i p
+					LEFT JOIN %i pm ON p.ID = pm.post_id AND pm.meta_key = %s
+					WHERE p.post_type = %s
+					AND (pm.meta_value IS NULL OR pm.meta_value = %s)
+					ORDER BY p.post_date ASC
+					LIMIT %d',
+					$wpdb->posts,
+					$wpdb->postmeta,
+					'nbs3_offloaded',
+					'attachment',
+					'',
+					$limit
+				);
 		} else {
-			$query = "SELECT p.ID FROM {$wpdb->posts} p
-                LEFT JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id AND pm.meta_key = 'nbs3_offloaded'
-                WHERE p.post_type = 'attachment'
-                AND (pm.meta_value IS NULL OR pm.meta_value = '')
-                ORDER BY p.post_date ASC";
-
-			if ( $limit > 0 ) {
-				// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- Base query is safe, only LIMIT is parameterized.
-				$query = $wpdb->prepare( $query . ' LIMIT %d', $limit );
-			}
+			$query = $wpdb->prepare(
+				'SELECT p.ID FROM %i p
+					LEFT JOIN %i pm ON p.ID = pm.post_id AND pm.meta_key = %s
+					WHERE p.post_type = %s
+					AND (pm.meta_value IS NULL OR pm.meta_value = %s)
+					ORDER BY p.post_date ASC',
+				$wpdb->posts,
+				$wpdb->postmeta,
+				'nbs3_offloaded',
+				'attachment',
+				''
+			);
 		}
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Complex JOIN query for CLI operations.
@@ -325,7 +369,7 @@ class OffloadCommand {
 		\WP_CLI::log( "Summary: {$successful} successful, {$failed} failed, {$skipped} skipped out of {$total} total." );
 
 		if ( $failed > 0 ) {
-			\WP_CLI::log( 'Check attachment error logs or use the Media Overview page for detailed error information.' );
+			\WP_CLI::log( 'Check attachment error logs or use the Media page for detailed error information.' );
 		}
 	}
 }

@@ -7,6 +7,8 @@
 
 namespace NBS3\Abstracts\WP_Background_Processing;
 
+defined( 'ABSPATH' ) || exit;
+
 /**
  * Abstract WP_Background_Process class.
  *
@@ -91,6 +93,7 @@ abstract class WP_Background_Process extends WP_Async_Request {
 		$this->cron_interval_identifier = $this->identifier . '_cron_interval';
 
 		add_action( $this->cron_hook_identifier, array( $this, 'handle_cron_healthcheck' ) );
+		// phpcs:ignore WordPress.WP.CronInterval.ChangeDetected -- Third-party library WP_Background_Processing.
 		add_filter( 'cron_schedules', array( $this, 'schedule_cron_healthcheck' ) );
 	}
 
@@ -478,12 +481,17 @@ abstract class WP_Background_Process extends WP_Async_Request {
 
 		$key = $wpdb->esc_like( $this->identifier . '_batch_' ) . '%';
 
-		$sql = '
+		// Escape table and column identifiers for SQL safety.
+		$table_escaped      = esc_sql( $table );
+		$column_escaped     = esc_sql( $column );
+		$key_column_escaped = esc_sql( $key_column );
+
+		$sql = "
 			SELECT *
-			FROM ' . $table . '
-			WHERE ' . $column . ' LIKE %s
-			ORDER BY ' . $key_column . ' ASC
-			';
+			FROM `{$table_escaped}`
+			WHERE `{$column_escaped}` LIKE %s
+			ORDER BY `{$key_column_escaped}` ASC
+			";
 
 		$args = array( $key );
 
@@ -493,7 +501,7 @@ abstract class WP_Background_Process extends WP_Async_Request {
 			$args[] = $limit;
 		}
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Third-party library, table/column names are hardcoded WordPress table references.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- Table/column identifiers from $wpdb properties are safe; values use prepare() placeholders.
 		$items = $wpdb->get_results( $wpdb->prepare( $sql, $args ) );
 
 		$batches = array();

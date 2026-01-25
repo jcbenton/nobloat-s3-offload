@@ -2,6 +2,8 @@
 
 Lightweight S3 media offloader for WordPress. Offload media to any S3-compatible storage with CDN support, Bricks Builder integration, and full WP-CLI commands.
 
+**Version:** 1.0.8
+
 ## Features
 
 - **Automatic Media Offloading** - New uploads are automatically sent to S3 and served via CDN
@@ -9,7 +11,12 @@ Lightweight S3 media offloader for WordPress. Offload media to any S3-compatible
 - **Revert to Local** - Download files back from S3 and restore local serving
 - **S3-Compatible** - Works with AWS S3, DigitalOcean Spaces, Cloudflare R2, MinIO, Wasabi, Backblaze B2, and more
 - **CDN Support** - Serve media through CloudFront or any custom CDN domain
+- **Media Library Integration** - View offload status directly in the Media Library list view
+- **Attachment Management** - Offload, remove, or manage individual files from the attachment edit screen
+- **File Versioning** - Automatic timestamp-based versioning prevents overwrites and ensures cache busting
+- **Collision Safety** - Local files preserved when potential S3 collisions detected
 - **Configurable ACL** - Choose between bucket policy (recommended), public-read, or private
+- **Flexible Retention Policies** - Keep local files, smart cleanup (keep originals), or full cloud migration
 - **Bricks Builder Integration** - Sync generated CSS files and theme assets to S3/CDN
 - **WP-CLI Support** - Full command-line tools for offloading, reverting, and Bricks sync
 - **Secure Credentials** - Store credentials in wp-config.php instead of the database
@@ -17,7 +24,7 @@ Lightweight S3 media offloader for WordPress. Offload media to any S3-compatible
 ## Requirements
 
 - PHP 8.1 or higher
-- WordPress 5.6 or higher
+- WordPress 6.2 or higher
 - An S3-compatible storage bucket
 
 ## Installation
@@ -134,6 +141,18 @@ Tested with:
 - Wasabi
 - Backblaze B2
 
+## Retention Policies
+
+Control what happens to local files after offloading:
+
+- **Retain Local Files** - Keep all files on your local server after offloading (safest option)
+- **Smart Local Cleanup** - Remove resized images locally, but keep the original file as a backup
+- **Full Cloud Migration** - Remove all local files after successful cloud offloading (maximum space savings)
+
+### Collision Safety
+
+When File Versioning is disabled and you use Full Cloud Migration, the plugin includes a safety mechanism: if a file with the same name already exists in S3, the local copy will be preserved to prevent data loss.
+
 ## ACL Settings
 
 The plugin supports three ACL modes:
@@ -155,4 +174,27 @@ add_filter('nbs3_should_offload_attachment', function($should_offload, $attachme
 
 ## License
 
-GPL v2 or later
+GPLv3 or later
+
+## Changelog
+
+See [readme.txt](readme.txt) for full changelog.
+
+### 1.0.8
+- Improved collision handling - WordPress handles all filenames
+- File versioning enabled by default
+- Safety valve to preserve local files on potential S3 collisions
+- Fixed path issues with files in uploads root directory
+
+### 1.0.7
+- Media Library offload status column
+- Attachment edit page S3 status meta box
+- Single attachment management actions
+- Improved AJAX handling with retry logic
+
+### 1.0.6
+- Settings caching for bulk operations
+- Enhanced error logging with S3 error details
+
+### 1.0.5
+- Initial release

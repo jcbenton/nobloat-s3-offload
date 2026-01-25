@@ -5,7 +5,9 @@
  * @package Nobloat_S3_Offload
  */
 
-declare(strict_types=1);
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
 
 /**
  * Get the admin page URL for a given page slug.
@@ -18,23 +20,35 @@ function nbs3_get_admin_page_url( string $page ): string {
 }
 
 $nbs3_menu_items = array(
-	'general'        => array(
-		'title' => __( 'General Settings', 'nobloat-s3-offload' ),
+	'plugin-status' => array(
+		'title' => __( 'Status', 'nobloat-s3-offload' ),
 		'url'   => nbs3_get_admin_page_url( 'nbs3' ),
 	),
-	'media-overview' => array(
-		'title' => __( 'Media Overview', 'nobloat-s3-offload' ),
-		'url'   => nbs3_get_admin_page_url( 'nbs3_media_overview' ),
+	'settings'      => array(
+		'title' => __( 'Settings', 'nobloat-s3-offload' ),
+		'url'   => nbs3_get_admin_page_url( 'nbs3_settings' ),
 	),
-	'aws-guide'      => array(
+	'connection'    => array(
+		'title' => __( 'Connection', 'nobloat-s3-offload' ),
+		'url'   => nbs3_get_admin_page_url( 'nbs3_connection' ),
+	),
+	'media'         => array(
+		'title' => __( 'Media', 'nobloat-s3-offload' ),
+		'url'   => nbs3_get_admin_page_url( 'nbs3_media' ),
+	),
+	'bricks'        => array(
+		'title' => __( 'Bricks', 'nobloat-s3-offload' ),
+		'url'   => nbs3_get_admin_page_url( 'nbs3_bricks' ),
+	),
+	'aws-guide'     => array(
 		'title' => __( 'AWS Guide', 'nobloat-s3-offload' ),
 		'url'   => nbs3_get_admin_page_url( 'nbs3_aws_guide' ),
 	),
-	'documentation'  => array(
+	'documentation' => array(
 		'title' => __( 'Documentation', 'nobloat-s3-offload' ),
 		'url'   => nbs3_get_admin_page_url( 'nbs3_documentation' ),
 	),
-	'about'          => array(
+	'about'         => array(
 		'title' => __( 'About', 'nobloat-s3-offload' ),
 		'url'   => nbs3_get_admin_page_url( 'nbs3_about' ),
 	),

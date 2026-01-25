@@ -10,6 +10,8 @@
 
 namespace NBS3;
 
+defined( 'ABSPATH' ) || exit;
+
 use NBS3\Traits\OffloaderTrait;
 use NBS3\Interfaces\ObserverInterface;
 use NBS3\Observers\AttachmentUrlObserver;
@@ -24,7 +26,6 @@ use NBS3\Observers\PostContentImageTagObserver;
 use NBS3\Observers\GetAttachedFileObserver;
 use NBS3\Observers\AttachmentUpdateObserver;
 use NBS3\Observers\ThumbnailRegenerationObserver;
-use NBS3\Observers\UniqueFilenameObserver;
 
 /**
  * Class Offloader
@@ -95,6 +96,11 @@ class Offloader {
 	 * @return void
 	 */
 	public function initialize_hooks() {
+		// Check if the plugin is enabled via master toggle.
+		if ( ! nbs3_is_plugin_enabled() ) {
+			return;
+		}
+
 		$this->attach( new AttachmentUploadObserver( $this->s3_provider ) );
 		$this->attach( new ImageSrcsetObserver( $this->s3_provider ) );
 		$this->attach( new ImageSrcsetMetaObserver( $this->s3_provider ) );
@@ -107,7 +113,6 @@ class Offloader {
 		$this->attach( new PostContentImageTagObserver( $this->s3_provider ) );
 		$this->attach( new ThumbnailRegenerationObserver( $this->s3_provider ) );
 		$this->attach( new AttachmentUpdateObserver( $this->s3_provider ) );
-		$this->attach( new UniqueFilenameObserver( $this->s3_provider ) );
 
 		foreach ( $this->observers as $observer ) {
 			$observer->register();

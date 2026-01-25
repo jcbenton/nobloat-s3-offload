@@ -5,6 +5,9 @@
  * @package Nobloat_S3_Offload
  */
 
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
 ?>
 <div class="nbs3-topbar">
 	<div class="nbs3-header">

@@ -8,6 +8,8 @@
 
 namespace NBS3\CLI;
 
+defined( 'ABSPATH' ) || exit;
+
 use NBS3\S3Provider;
 
 /**
@@ -243,18 +245,37 @@ class RevertCommand {
 	private function get_offloaded_attachments( $limit ) {
 		global $wpdb;
 
-		$query = "SELECT p.ID FROM {$wpdb->posts} p
-            INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id AND pm.meta_key = 'nbs3_offloaded'
-            WHERE p.post_type = 'attachment'
-            AND pm.meta_value = '1'
-            ORDER BY p.post_date DESC";
-
 		if ( $limit > 0 ) {
-			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- Base query is safe, only LIMIT is parameterized.
-			$query = $wpdb->prepare( $query . ' LIMIT %d', $limit );
+			$query = $wpdb->prepare(
+				'SELECT p.ID FROM %i p
+				INNER JOIN %i pm ON p.ID = pm.post_id AND pm.meta_key = %s
+				WHERE p.post_type = %s
+				AND pm.meta_value = %s
+				ORDER BY p.post_date DESC
+				LIMIT %d',
+				$wpdb->posts,
+				$wpdb->postmeta,
+				'nbs3_offloaded',
+				'attachment',
+				'1',
+				$limit
+			);
+		} else {
+			$query = $wpdb->prepare(
+				'SELECT p.ID FROM %i p
+				INNER JOIN %i pm ON p.ID = pm.post_id AND pm.meta_key = %s
+				WHERE p.post_type = %s
+				AND pm.meta_value = %s
+				ORDER BY p.post_date DESC',
+				$wpdb->posts,
+				$wpdb->postmeta,
+				'nbs3_offloaded',
+				'attachment',
+				'1'
+			);
 		}
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Complex JOIN query for CLI operations.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Query is fully prepared above.
 		return $wpdb->get_col( $query );
 	}
 
@@ -338,7 +359,7 @@ class RevertCommand {
 
 		// Delete from S3 if not keeping.
 		if ( ! $keep_s3 ) {
-			if ( $this->s3_provider->deleteAttachment( $attachment_id ) ) {
+			if ( $this->s3_provider->delete_attachment( $attachment_id ) ) {
 				\WP_CLI::log( '  Deleted from S3.' );
 			} else {
 				\WP_CLI::warning( '  Failed to delete from S3 (files may remain in cloud).' );

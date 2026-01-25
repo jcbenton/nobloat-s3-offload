@@ -11,6 +11,8 @@
 
 namespace NBS3\Services;
 
+defined( 'ABSPATH' ) || exit;
+
 use NBS3\Services\CloudAttachmentUploader;
 use NBS3\S3Provider;
 use NBS3\Abstracts\WP_Background_Processing\WP_Background_Process;
@@ -40,6 +42,17 @@ class BulkMediaOffloader extends WP_Background_Process {
 	 * @var string
 	 */
 	protected $action = 'bulk_offload_media_process';
+
+	/**
+	 * Allowed classes for unserialization.
+	 *
+	 * Set to false to only allow scalar values (integers) in the queue,
+	 * preventing potential object injection attacks via the database.
+	 *
+	 * @since 1.0.6
+	 * @var bool
+	 */
+	protected $allowed_batch_data_classes = false;
 
 	/**
 	 * The cloud attachment uploader instance.

@@ -28,18 +28,20 @@ if ( ! current_user_can( 'manage_options' ) ) {
 					<ol>
 						<li><?php esc_html_e( 'Create an S3 bucket (or use an existing one)', 'nobloat-s3-offload' ); ?></li>
 						<li><?php esc_html_e( 'Create IAM credentials with S3 access permissions', 'nobloat-s3-offload' ); ?></li>
-						<li><?php esc_html_e( 'Enter your credentials in the General Settings page', 'nobloat-s3-offload' ); ?></li>
-						<li><?php esc_html_e( 'Test the connection to verify everything works', 'nobloat-s3-offload' ); ?></li>
-						<li><?php esc_html_e( 'Enable auto-offload to start uploading new media automatically', 'nobloat-s3-offload' ); ?></li>
+						<li><?php esc_html_e( 'Go to the Connection tab, enter your S3 credentials, and click "Test Connection" to verify', 'nobloat-s3-offload' ); ?></li>
+						<li><?php esc_html_e( 'Go to the Settings tab to configure your preferred offload behavior', 'nobloat-s3-offload' ); ?></li>
+						<li><?php esc_html_e( 'Go to the Status tab and enable the plugin to start offloading new media uploads', 'nobloat-s3-offload' ); ?></li>
+						<li><?php esc_html_e( 'Go to the Media tab to offload existing media using the bulk offload button, or use WP-CLI (wp nbs3 offload) for large libraries', 'nobloat-s3-offload' ); ?></li>
 					</ol>
 				</div>
 			</div>
 
 			<div class="nbs3-section">
 				<div class="nbs3-section-header">
-					<h2><?php esc_html_e( 'S3 Connection Settings', 'nobloat-s3-offload' ); ?></h2>
+					<h2><?php esc_html_e( 'Connection Tab', 'nobloat-s3-offload' ); ?></h2>
 				</div>
 				<div class="nbs3-section-content">
+					<p><?php esc_html_e( 'The Connection tab contains your S3 credentials and connection settings.', 'nobloat-s3-offload' ); ?></p>
 					<table class="nbs3-docs-table">
 						<tr>
 							<th><?php esc_html_e( 'Region', 'nobloat-s3-offload' ); ?></th>
@@ -91,9 +93,29 @@ if ( ! current_user_can( 'manage_options' ) ) {
 
 			<div class="nbs3-section">
 				<div class="nbs3-section-header">
-					<h2><?php esc_html_e( 'General Settings', 'nobloat-s3-offload' ); ?></h2>
+					<h2><?php esc_html_e( 'Status Tab', 'nobloat-s3-offload' ); ?></h2>
 				</div>
 				<div class="nbs3-section-content">
+					<p><?php esc_html_e( 'The Status tab contains a master enable/disable toggle. This allows you to fully configure and test your S3 connection before activating the offload functionality.', 'nobloat-s3-offload' ); ?></p>
+					<table class="nbs3-docs-table">
+						<tr>
+							<th><?php esc_html_e( 'Disabled (Default)', 'nobloat-s3-offload' ); ?></th>
+							<td><?php esc_html_e( 'The plugin will not offload any media. Use this state while setting up credentials and testing. All settings can still be configured.', 'nobloat-s3-offload' ); ?></td>
+						</tr>
+						<tr>
+							<th><?php esc_html_e( 'Enabled', 'nobloat-s3-offload' ); ?></th>
+							<td><?php esc_html_e( 'The plugin is active and will offload media according to your settings. Only enable after successfully testing your S3 connection.', 'nobloat-s3-offload' ); ?></td>
+						</tr>
+					</table>
+				</div>
+			</div>
+
+			<div class="nbs3-section">
+				<div class="nbs3-section-header">
+					<h2><?php esc_html_e( 'Settings Tab', 'nobloat-s3-offload' ); ?></h2>
+				</div>
+				<div class="nbs3-section-content">
+					<p><?php esc_html_e( 'The Settings tab contains general offload behavior options.', 'nobloat-s3-offload' ); ?></p>
 					<table class="nbs3-docs-table">
 						<tr>
 							<th><?php esc_html_e( 'Auto-Offload Media', 'nobloat-s3-offload' ); ?></th>
@@ -104,12 +126,13 @@ if ( ! current_user_can( 'manage_options' ) ) {
 							<td>
 								<strong><?php esc_html_e( 'Retain Local Files:', 'nobloat-s3-offload' ); ?></strong> <?php esc_html_e( 'Keep all files on your server after offloading.', 'nobloat-s3-offload' ); ?><br>
 								<strong><?php esc_html_e( 'Smart Local Cleanup:', 'nobloat-s3-offload' ); ?></strong> <?php esc_html_e( 'Delete generated sizes but keep the original file.', 'nobloat-s3-offload' ); ?><br>
-								<strong><?php esc_html_e( 'Full Cloud Migration:', 'nobloat-s3-offload' ); ?></strong> <?php esc_html_e( 'Delete all local files after successful upload.', 'nobloat-s3-offload' ); ?>
+								<strong><?php esc_html_e( 'Full Cloud Migration:', 'nobloat-s3-offload' ); ?></strong> <?php esc_html_e( 'Delete all local files after successful upload.', 'nobloat-s3-offload' ); ?><br>
+								<em><?php esc_html_e( 'Safety Note: If File Versioning is disabled and a potential S3 collision is detected, local files are preserved to prevent data loss.', 'nobloat-s3-offload' ); ?></em>
 							</td>
 						</tr>
 						<tr>
 							<th><?php esc_html_e( 'File Versioning', 'nobloat-s3-offload' ); ?></th>
-							<td><?php esc_html_e( 'Adds a unique timestamp to file paths in S3, ensuring updated files bypass CDN cache. Useful when you frequently replace media files.', 'nobloat-s3-offload' ); ?></td>
+							<td><?php esc_html_e( 'Enabled by default. Adds a unique timestamp to file paths in S3, preventing overwrites and ensuring updated files bypass CDN cache. Recommended to keep enabled.', 'nobloat-s3-offload' ); ?></td>
 						</tr>
 						<tr>
 							<th><?php esc_html_e( 'Mirror Delete', 'nobloat-s3-offload' ); ?></th>
@@ -125,10 +148,28 @@ if ( ! current_user_can( 'manage_options' ) ) {
 
 			<div class="nbs3-section">
 				<div class="nbs3-section-header">
-					<h2><?php esc_html_e( 'Media Overview', 'nobloat-s3-offload' ); ?></h2>
+					<h2><?php esc_html_e( 'Media Tab', 'nobloat-s3-offload' ); ?></h2>
 				</div>
 				<div class="nbs3-section-content">
-					<p><?php esc_html_e( 'The Media Overview page shows the offload status of your media library and allows you to bulk offload existing files.', 'nobloat-s3-offload' ); ?></p>
+					<p><?php esc_html_e( 'The Media tab shows the offload status of your media library and allows you to bulk offload existing files.', 'nobloat-s3-offload' ); ?></p>
+
+					<h3><?php esc_html_e( 'Media Library Integration', 'nobloat-s3-offload' ); ?></h3>
+					<p><?php esc_html_e( 'The plugin adds an "S3 Status" column to the Media Library list view, showing the offload status of each file:', 'nobloat-s3-offload' ); ?></p>
+					<ul>
+						<li><strong><?php esc_html_e( 'Offloaded', 'nobloat-s3-offload' ); ?></strong> - <?php esc_html_e( 'File has been uploaded to S3 and is served from the cloud.', 'nobloat-s3-offload' ); ?></li>
+						<li><strong><?php esc_html_e( 'Not Offloaded', 'nobloat-s3-offload' ); ?></strong> - <?php esc_html_e( 'File is stored locally and has not been uploaded to S3.', 'nobloat-s3-offload' ); ?></li>
+						<li><strong><?php esc_html_e( 'Error', 'nobloat-s3-offload' ); ?></strong> - <?php esc_html_e( 'A previous offload attempt failed. Check the error log for details.', 'nobloat-s3-offload' ); ?></li>
+					</ul>
+					<p><?php esc_html_e( 'Click on any attachment to view detailed S3 information and manage offload status from the edit screen.', 'nobloat-s3-offload' ); ?></p>
+
+					<h3><?php esc_html_e( 'Individual Attachment Management', 'nobloat-s3-offload' ); ?></h3>
+					<p><?php esc_html_e( 'When editing an individual attachment, the "S3 Offload Status" meta box provides:', 'nobloat-s3-offload' ); ?></p>
+					<ul>
+						<li><?php esc_html_e( 'Current offload status and S3 path', 'nobloat-s3-offload' ); ?></li>
+						<li><strong><?php esc_html_e( 'Offload Now', 'nobloat-s3-offload' ); ?></strong> - <?php esc_html_e( 'Upload this file to S3 immediately.', 'nobloat-s3-offload' ); ?></li>
+						<li><strong><?php esc_html_e( 'Remove from S3', 'nobloat-s3-offload' ); ?></strong> - <?php esc_html_e( 'Delete the file from S3 (keeps local copy if available).', 'nobloat-s3-offload' ); ?></li>
+						<li><strong><?php esc_html_e( 'Clear Status', 'nobloat-s3-offload' ); ?></strong> - <?php esc_html_e( 'Reset offload metadata without deleting files.', 'nobloat-s3-offload' ); ?></li>
+					</ul>
 
 					<h3><?php esc_html_e( 'Bulk Offload', 'nobloat-s3-offload' ); ?></h3>
 					<p><?php esc_html_e( 'Use the bulk offload feature to migrate your existing media library to S3. The process runs in batches to avoid server timeouts. You can pause and resume at any time.', 'nobloat-s3-offload' ); ?></p>
@@ -165,15 +206,36 @@ wp nbs3 revert --keep-s3
 
 # Preview what would be reverted (no changes made)
 wp nbs3 revert --dry-run</code></pre>
+
+					<h3><?php esc_html_e( 'Invalidate Offload Status', 'nobloat-s3-offload' ); ?></h3>
+					<p><?php esc_html_e( 'If files have been deleted from S3 externally (bucket changed, manual deletion, etc.), use the invalidate command to clear offload metadata so WordPress uses local files instead. This does NOT download or delete any files.', 'nobloat-s3-offload' ); ?></p>
+					<pre><code># Invalidate specific attachment(s)
+wp nbs3 invalidate 123
+wp nbs3 invalidate 123,456,789
+
+# Invalidate all offloaded attachments
+wp nbs3 invalidate --all
+
+# Invalidate Bricks CSS and theme assets sync status
+wp nbs3 invalidate --bricks
+
+# Invalidate all attachments AND Bricks sync status
+wp nbs3 invalidate --all --bricks
+
+# Invalidate with limit
+wp nbs3 invalidate --all --limit=50
+
+# Preview what would be invalidated (no changes made)
+wp nbs3 invalidate --all --dry-run</code></pre>
 				</div>
 			</div>
 
 			<div class="nbs3-section">
 				<div class="nbs3-section-header">
-					<h2><?php esc_html_e( 'Bricks Builder Integration', 'nobloat-s3-offload' ); ?></h2>
+					<h2><?php esc_html_e( 'Bricks Tab', 'nobloat-s3-offload' ); ?></h2>
 				</div>
 				<div class="nbs3-section-content">
-					<p><?php esc_html_e( 'When Bricks Builder is active, you can automatically sync Bricks files to S3 and serve them from S3 or your CDN. Two types of files can be synced:', 'nobloat-s3-offload' ); ?></p>
+					<p><?php esc_html_e( 'The Bricks tab provides integration with Bricks Builder. When Bricks is active, you can automatically sync Bricks files to S3 and serve them from your CDN. Two types of files can be synced:', 'nobloat-s3-offload' ); ?></p>
 
 					<?php if ( ! nbs3_is_bricks_active() ) : ?>
 					<div class="notice notice-info inline" style="margin: 15px 0;">
@@ -184,7 +246,7 @@ wp nbs3 revert --dry-run</code></pre>
 					<h3><?php esc_html_e( 'Bricks CSS Sync', 'nobloat-s3-offload' ); ?></h3>
 					<p><?php esc_html_e( 'Syncs dynamically generated CSS files from /uploads/bricks/css/ (per-page/template styles).', 'nobloat-s3-offload' ); ?></p>
 					<ol>
-						<li><?php esc_html_e( 'Enable "Sync Bricks CSS to S3" in General Settings', 'nobloat-s3-offload' ); ?></li>
+						<li><?php esc_html_e( 'Go to the Bricks tab and enable "Sync Bricks CSS to S3"', 'nobloat-s3-offload' ); ?></li>
 						<li><?php esc_html_e( 'When Bricks generates CSS files, they are automatically uploaded to S3', 'nobloat-s3-offload' ); ?></li>
 						<li><?php esc_html_e( 'CSS URLs are rewritten to serve from your CDN or S3 bucket', 'nobloat-s3-offload' ); ?></li>
 						<li><?php esc_html_e( 'A background cron job syncs and cleans up deleted files every 5 minutes', 'nobloat-s3-offload' ); ?></li>
@@ -193,7 +255,7 @@ wp nbs3 revert --dry-run</code></pre>
 					<h3><?php esc_html_e( 'Bricks Theme Assets Sync', 'nobloat-s3-offload' ); ?></h3>
 					<p><?php esc_html_e( 'Syncs static theme assets from /themes/bricks/assets/ (CSS, JS, fonts, images).', 'nobloat-s3-offload' ); ?></p>
 					<ol>
-						<li><?php esc_html_e( 'Enable "Sync Bricks Theme Assets to S3" in General Settings', 'nobloat-s3-offload' ); ?></li>
+						<li><?php esc_html_e( 'Go to the Bricks tab and enable "Sync Bricks Theme Assets to S3"', 'nobloat-s3-offload' ); ?></li>
 						<li><?php esc_html_e( 'Click "Sync Now" to upload all theme assets to S3', 'nobloat-s3-offload' ); ?></li>
 						<li><?php esc_html_e( 'Theme asset URLs are rewritten to serve from your CDN or S3 bucket', 'nobloat-s3-offload' ); ?></li>
 						<li><?php esc_html_e( 'Assets automatically re-sync when any plugin or theme is updated', 'nobloat-s3-offload' ); ?></li>
@@ -371,6 +433,7 @@ wp cron event list | grep nbs3</code></pre>
 				"s3:PutObject",
 				"s3:GetObject",
 				"s3:DeleteObject",
+				"s3:HeadObject",
 				"s3:ListBucket"
 			],
 			"Resource": [

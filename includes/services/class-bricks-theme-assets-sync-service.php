@@ -10,6 +10,8 @@
 
 namespace NBS3\Services;
 
+defined( 'ABSPATH' ) || exit;
+
 use NBS3\S3Provider;
 
 /**
@@ -94,6 +96,81 @@ class BricksThemeAssetsSyncService {
 			'deleted'      => $deleted,
 			'errors'       => $errors,
 			'total_synced' => count( $this->get_synced_files() ),
+		);
+	}
+
+	/**
+	 * Batch sync - upload a limited number of files per call.
+	 *
+	 * @param int $limit Maximum number of files to process per batch.
+	 * @return array Sync results with uploaded, skipped, errors, has_more, and processed counts.
+	 */
+	public function batch_sync( int $limit = 50 ): array {
+		$local_files  = $this->scan_local_files();
+		$synced_files = $this->get_synced_files();
+
+		$uploaded  = 0;
+		$skipped   = 0;
+		$errors    = 0;
+		$processed = 0;
+
+		// First pass: upload new/modified files.
+		foreach ( $local_files as $relative_path => $mtime ) {
+			if ( $processed >= $limit ) {
+				break;
+			}
+
+			// Check if file needs upload (new or modified).
+			if ( isset( $synced_files[ $relative_path ] ) && $synced_files[ $relative_path ]['mtime'] >= $mtime ) {
+				continue; // Already synced, don't count toward limit.
+			}
+
+			++$processed;
+
+			if ( $this->upload_file( $relative_path ) ) {
+				$this->mark_file_synced( $relative_path, $mtime );
+				++$uploaded;
+			} else {
+				++$errors;
+			}
+		}
+
+		// Calculate remaining files to process.
+		$remaining_uploads = 0;
+		foreach ( $local_files as $relative_path => $mtime ) {
+			if ( ! isset( $synced_files[ $relative_path ] ) || $synced_files[ $relative_path ]['mtime'] < $mtime ) {
+				// Re-check synced files since we just updated some.
+				$current_synced = $this->get_synced_files();
+				if ( ! isset( $current_synced[ $relative_path ] ) || $current_synced[ $relative_path ]['mtime'] < $mtime ) {
+					++$remaining_uploads;
+				}
+			}
+		}
+
+		// If no more uploads, clean up orphaned S3 files.
+		$deleted = 0;
+		if ( 0 === $remaining_uploads ) {
+			$current_synced = $this->get_synced_files();
+			foreach ( $current_synced as $relative_path => $data ) {
+				if ( ! isset( $local_files[ $relative_path ] ) ) {
+					if ( $this->delete_from_s3( $relative_path ) ) {
+						++$deleted;
+					}
+				}
+			}
+		}
+
+		$status = $this->get_status();
+
+		return array(
+			'uploaded'  => $uploaded,
+			'skipped'   => $skipped,
+			'deleted'   => $deleted,
+			'errors'    => $errors,
+			'processed' => $processed,
+			'has_more'  => $remaining_uploads > 0,
+			'remaining' => $remaining_uploads,
+			'status'    => $status,
 		);
 	}
 

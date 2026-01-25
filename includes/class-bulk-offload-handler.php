@@ -10,6 +10,8 @@
 
 namespace NBS3;
 
+defined( 'ABSPATH' ) || exit;
+
 use NBS3\Services\BulkMediaOffloader;
 use NBS3\S3Provider;
 
@@ -346,14 +348,21 @@ class BulkOffloadHandler {
 		$oversized_files      = 0;
 
 		$query = $wpdb->prepare(
-			"SELECT p.ID FROM {$wpdb->posts} p
-            LEFT JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id AND pm.meta_key = 'nbs3_offloaded'
-            LEFT JOIN {$wpdb->postmeta} em ON p.ID = em.post_id AND em.meta_key = 'nbs3_error_log'
-            WHERE p.post_type = 'attachment'
-            AND (pm.meta_value IS NULL OR pm.meta_value = '')
-            AND em.meta_id IS NULL
-            ORDER BY p.post_date ASC
-            LIMIT %d",
+			'SELECT p.ID FROM %i p
+			LEFT JOIN %i pm ON p.ID = pm.post_id AND pm.meta_key = %s
+			LEFT JOIN %i em ON p.ID = em.post_id AND em.meta_key = %s
+			WHERE p.post_type = %s
+			AND (pm.meta_value IS NULL OR pm.meta_value = %s)
+			AND em.meta_id IS NULL
+			ORDER BY p.post_date ASC
+			LIMIT %d',
+			$wpdb->posts,
+			$wpdb->postmeta,
+			'nbs3_offloaded',
+			$wpdb->postmeta,
+			'nbs3_error_log',
+			'attachment',
+			'',
 			$batch_size * 2
 		);
 
@@ -399,16 +408,24 @@ class BulkOffloadHandler {
 
 		if ( $remaining_slots > 0 ) {
 			$error_query = $wpdb->prepare(
-				"SELECT p.ID
-                FROM {$wpdb->posts} p
-                JOIN {$wpdb->postmeta} pm_error ON (p.ID = pm_error.post_id AND pm_error.meta_key = 'nbs3_error_log')
-                LEFT JOIN {$wpdb->postmeta} pm_offload ON (p.ID = pm_offload.post_id AND pm_offload.meta_key = 'nbs3_offloaded')
-                WHERE p.post_type = 'attachment'
-                AND (pm_offload.meta_value IS NULL OR pm_offload.meta_value = '')
-                AND pm_error.meta_value IS NOT NULL
-                AND pm_error.meta_value != ''
-                ORDER BY p.post_date ASC
-                LIMIT %d",
+				'SELECT p.ID
+				FROM %i p
+				JOIN %i pm_error ON (p.ID = pm_error.post_id AND pm_error.meta_key = %s)
+				LEFT JOIN %i pm_offload ON (p.ID = pm_offload.post_id AND pm_offload.meta_key = %s)
+				WHERE p.post_type = %s
+				AND (pm_offload.meta_value IS NULL OR pm_offload.meta_value = %s)
+				AND pm_error.meta_value IS NOT NULL
+				AND pm_error.meta_value != %s
+				ORDER BY p.post_date ASC
+				LIMIT %d',
+				$wpdb->posts,
+				$wpdb->postmeta,
+				'nbs3_error_log',
+				$wpdb->postmeta,
+				'nbs3_offloaded',
+				'attachment',
+				'',
+				'',
 				$remaining_slots * 2
 			);
 

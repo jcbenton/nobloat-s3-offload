@@ -7,6 +7,8 @@
 
 namespace NBS3\Abstracts\WP_Background_Processing;
 
+defined( 'ABSPATH' ) || exit;
+
 /**
  * Abstract WP_Async_Request class.
  *
@@ -177,7 +179,7 @@ abstract class WP_Async_Request {
 	 *
 	 * @return void|mixed
 	 */
-	protected function maybe_wp_die( $return = null ) {
+	protected function maybe_wp_die( $return = null ) { // phpcs:ignore Universal.NamingConventions.NoReservedKeywordParameterNames.returnFound -- Third-party library WP_Background_Processing.
 		/**
 		 * Filters whether wp_die should be used.
 		 *

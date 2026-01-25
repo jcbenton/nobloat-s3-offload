@@ -1,0 +1,9 @@
+parameters:
+    level: 6
+    paths:
+        - includes/
+        - nobloat-s3-offload.php
+    scanDirectories:
+        - vendor/
+    bootstrapFiles:
+        - vendor/scoper-autoload.php

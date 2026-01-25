@@ -11,6 +11,8 @@
 
 namespace NBS3\Observers;
 
+defined( 'ABSPATH' ) || exit;
+
 use NBS3\S3Provider;
 use NBS3\Interfaces\ObserverInterface;
 use NBS3\Traits\OffloaderTrait;

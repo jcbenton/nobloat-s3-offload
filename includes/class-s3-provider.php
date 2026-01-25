@@ -7,6 +7,8 @@
 
 namespace NBS3;
 
+defined( 'ABSPATH' ) || exit;
+
 use NBS3Vendor\Aws\S3\S3Client;
 
 /**
@@ -22,6 +24,13 @@ class S3Provider {
 	 * @var S3Client|null
 	 */
 	protected $s3_client;
+
+	/**
+	 * Last error message from S3 operations.
+	 *
+	 * @var string
+	 */
+	protected $last_error = '';
 
 	/**
 	 * Get or create the S3 client.
@@ -124,6 +133,15 @@ class S3Provider {
 	}
 
 	/**
+	 * Get the last error message.
+	 *
+	 * @return string The last error message.
+	 */
+	public function get_last_error(): string {
+		return $this->last_error;
+	}
+
+	/**
 	 * Upload a file to S3.
 	 *
 	 * @param string $file The local file path.
@@ -131,6 +149,24 @@ class S3Provider {
 	 * @return string|false The object URL on success, false on failure.
 	 */
 	public function upload_file( $file, $key ) {
+		$this->last_error = '';
+
+		// Check if file exists before attempting upload.
+		if ( ! file_exists( $file ) ) {
+			$this->last_error = "Local file does not exist: {$file}";
+			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging.
+			error_log( "NBS3: {$this->last_error}" );
+			return false;
+		}
+
+		// Check if file is readable.
+		if ( ! is_readable( $file ) ) {
+			$this->last_error = "Local file is not readable: {$file}";
+			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging.
+			error_log( "NBS3: {$this->last_error}" );
+			return false;
+		}
+
 		$client = $this->get_client();
 		try {
 			$params = array(
@@ -149,8 +185,9 @@ class S3Provider {
 			$result = $client->putObject( $params );
 			return $client->getObjectUrl( $this->get_bucket(), $key );
 		} catch ( \Exception $e ) {
+			$this->last_error = $e->getMessage();
 			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging for S3 failures.
-			error_log( "NBS3: Error uploading file to S3: {$e->getMessage()}" );
+			error_log( "NBS3: Error uploading file to S3: {$this->last_error}" );
 			return false;
 		}
 	}
@@ -475,19 +512,19 @@ class S3Provider {
 	 *
 	 * @param string $field_name   The field name.
 	 * @param string $field_label  The field label.
-	 * @param string $field_type   The field type.
-	 * @param string $placeholder  The placeholder text.
-	 * @param string $description  The field description.
-	 * @param string $default      The default value.
+	 * @param string $field_type    The field type.
+	 * @param string $placeholder   The placeholder text.
+	 * @param string $description   The field description.
+	 * @param string $default_value The default value.
 	 * @return string The HTML for the field.
 	 */
-	protected function render_credential_field( $field_name, $field_label, $field_type = 'text', $placeholder = '', $description = '', $default = '' ) {
+	protected function render_credential_field( $field_name, $field_label, $field_type = 'text', $placeholder = '', $description = '', $default_value = '' ) {
 		$constant_name       = 'NBS3_' . strtoupper( $field_name );
 		$is_constant_defined = nbs3_credential_exists_in_config( $constant_name );
 		$field_value         = nbs3_get_credential( $field_name );
 
-		if ( ( null === $field_value || '' === $field_value ) && ! empty( $default ) ) {
-			$field_value = $default;
+		if ( ( null === $field_value || '' === $field_value ) && ! empty( $default_value ) ) {
+			$field_value = $default_value;
 		}
 
 		$input_name     = "nbs3_credentials[{$field_name}]";

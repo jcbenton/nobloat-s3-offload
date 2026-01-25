@@ -2,10 +2,10 @@
 Contributors: mailborder
 Donate Link: https://donate.stripe.com/3cIfZi81NbxX9CX4uybfO01
 Tags: s3, media, offload, cdn, aws
-Requires at least: 5.6
+Requires at least: 6.2
 Tested up to: 6.9
 Requires PHP: 8.1
-Stable tag: 1.0.5
+Stable tag: 1.0.8
 License: GPLv3 or later
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -24,7 +24,12 @@ Written by Jerry Benton, the creator of Mailborder and MailScanner v5.
 * **Revert to Local** - Download files back from S3 and restore local serving
 * **S3-Compatible** - Works with AWS S3, DigitalOcean Spaces, Cloudflare R2, MinIO, Wasabi, Backblaze B2, and more
 * **CDN Support** - Serve media through CloudFront or any custom CDN domain
+* **Media Library Integration** - View offload status directly in the Media Library list view
+* **Attachment Management** - Offload, remove, or manage individual files from the attachment edit screen
+* **File Versioning** - Automatic timestamp-based versioning prevents overwrites and ensures cache busting
+* **Collision Safety** - Local files preserved when potential S3 collisions detected
 * **Configurable ACL** - Choose between bucket policy (recommended), public-read, or private
+* **Flexible Retention** - Keep local files, smart cleanup, or full cloud migration
 * **Bricks Builder Integration** - Sync generated CSS files and theme assets to S3/CDN
 * **WP-CLI Support** - Full command-line tools for offloading, reverting, and Bricks sync
 * **wp-config.php Credentials** - Store credentials securely as constants instead of in the database
@@ -48,7 +53,7 @@ If you use Bricks Builder, enable automatic sync to serve your Bricks files from
 = Requirements =
 
 * PHP 8.1 or higher
-* WordPress 5.6 or higher
+* WordPress 6.2 or higher
 * An S3-compatible storage bucket
 
 == Installation ==
@@ -113,6 +118,28 @@ If media cannot be uploaded to S3, the local file is preserved and WordPress wil
 
 == Changelog ==
 
+= 1.0.8 =
+* Improved collision handling - WordPress now handles all filename decisions
+* File versioning enabled by default to prevent S3 overwrites
+* Added safety valve: local files preserved on potential S3 collisions when versioning is disabled
+* Fixed path issue with files in uploads root directory (SignatureDoesNotMatch errors)
+* Removed filename modification logic that could cause media library mismatches
+* Added helper text explaining collision safety behavior in settings
+
+= 1.0.7 =
+* Added S3 offload status column to Media Library list view
+* Added S3 status meta box on attachment edit pages
+* Single attachment offload, remove, and invalidate actions from edit screen
+* Improved AJAX handling with retry logic for large operations
+* Reduced batch size for better reliability on shared hosting
+* Better error messages with actual S3 error details
+
+= 1.0.6 =
+* Added settings caching for improved bulk operation performance
+* Enhanced error logging with actual S3 error messages and file paths
+* Added file existence and readability checks before upload attempts
+* Improved debugging information for failed uploads
+
 = 1.0.5 =
 * Initial release
 * Media offloading to S3-compatible storage
@@ -126,6 +153,15 @@ If media cannot be uploaded to S3, the local file is preserved and WordPress wil
 * wp-config.php credential support
 
 == Upgrade Notice ==
+
+= 1.0.8 =
+Improved collision handling and file versioning. Recommended update for all users.
+
+= 1.0.7 =
+Added Media Library status column and attachment edit meta box for easier management.
+
+= 1.0.6 =
+Performance improvements and better error logging.
 
 = 1.0.5 =
 Initial release.

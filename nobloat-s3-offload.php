@@ -9,8 +9,8 @@
  * Plugin Name:       Nobloat S3 Offload
  * Plugin URI:        https://github.com/mailborder/nobloat-s3-offload
  * Description:       Lightweight S3 media offloader for WordPress. Offload media to any S3-compatible storage.
- * Version:           1.0.5
- * Requires at least: 5.6
+ * Version:           1.0.8
+ * Requires at least: 6.2
  * Requires PHP:      8.1
  * Author:            Jerry Benton
  * Author URI:        https://www.mailborder.com
@@ -109,6 +109,7 @@ if ( ! class_exists( 'NBS3' ) ) {
 			// Register S3 provider.
 			$this->container->register(
 				's3_provider',
+				// phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.Found -- Container callback signature requires $c parameter.
 				function ( $c ) {
 					$settings    = get_option( 'nbs3_settings', array() );
 					$credentials = get_option( 'nbs3_credentials', array() );
@@ -135,20 +136,23 @@ if ( ! class_exists( 'NBS3' ) ) {
 
 			$this->container->register(
 				'settings_page',
+				// phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.Found -- Container callback signature requires $c parameter.
 				function ( $c ) {
-					return \NBS3\Admin\GeneralSettings::getInstance();
+					return \NBS3\Admin\GeneralSettings::get_instance();
 				}
 			);
 
 			$this->container->register(
 				'media_overview_page',
+				// phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.Found -- Container callback signature requires $c parameter.
 				function ( $c ) {
-					return \NBS3\Admin\MediaOverview::getInstance();
+					return \NBS3\Admin\MediaOverview::get_instance();
 				}
 			);
 
 			$this->container->register(
 				'bulk_offload_handler',
+				// phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.Found -- Container callback signature requires $c parameter.
 				function ( $c ) {
 					return \NBS3\BulkOffloadHandler::get_instance();
 				}
@@ -185,7 +189,7 @@ if ( ! class_exists( 'NBS3' ) ) {
 
 			// Initialize offloader if configured.
 			if ( $this->container->has( 'offloader' ) && null !== $this->container->get( 'offloader' ) ) {
-				$this->container->get( 'offloader' )->initializeHooks();
+				$this->container->get( 'offloader' )->initialize_hooks();
 			}
 
 			// Initialize bulk offload handler.
@@ -228,7 +232,7 @@ if ( ! class_exists( 'NBS3' ) ) {
 			$theme_assets_observer->register();
 
 			// Register the cron hook for async theme assets sync.
-			\NBS3\Observers\BricksThemeAssetsSyncObserver::registerCronHook( $s3_provider );
+			\NBS3\Observers\BricksThemeAssetsSyncObserver::register_cron_hook( $s3_provider );
 		}
 
 		/**
@@ -240,9 +244,11 @@ if ( ! class_exists( 'NBS3' ) ) {
 		 */
 		private function register_cron_schedules() {
 			// Add custom cron interval for Bricks sync.
+			// phpcs:disable WordPress.WP.CronInterval.CronSchedulesInterval
 			add_filter(
 				'cron_schedules',
 				function ( $schedules ) {
+					// 5-minute interval is intentional for responsive Bricks CSS sync.
 					$schedules['nbs3_five_minutes'] = array(
 						'interval' => 5 * MINUTE_IN_SECONDS,
 						'display'  => __( 'Every 5 Minutes', 'nobloat-s3-offload' ),
@@ -250,6 +256,7 @@ if ( ! class_exists( 'NBS3' ) ) {
 					return $schedules;
 				}
 			);
+			// phpcs:enable WordPress.WP.CronInterval.CronSchedulesInterval
 
 			// Handle Bricks sync cron.
 			add_action( 'nbs3_bricks_sync_cron', array( $this, 'run_bricks_sync_cron' ) );
@@ -292,7 +299,7 @@ if ( ! class_exists( 'NBS3' ) ) {
 
 			try {
 				$sync_service = new \NBS3\Services\BricksCssSyncService( $s3_provider );
-				$result       = $sync_service->fullSync();
+				$result       = $sync_service->full_sync();
 
 				if ( $result['uploaded'] > 0 || $result['deleted'] > 0 ) {
 					// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional logging for cron sync results.
@@ -330,20 +337,27 @@ if ( ! class_exists( 'NBS3' ) ) {
 		 * @return void
 		 */
 		private function include_files() {
-			include_once NBS3_PATH . 'includes/utility-functions.php';
+			include_once NBS3_PATH . 'includes/functions.php';
 		}
 
 		/**
 		 * Register WP-CLI commands.
 		 *
-		 * Adds offload, revert, and sync-bricks commands to WP-CLI.
+		 * Adds offload, revert, invalidate, and sync-bricks commands to WP-CLI.
 		 *
 		 * @return void
 		 */
 		private function register_cli_commands() {
 			if ( defined( 'WP_CLI' ) && WP_CLI ) {
+				$cli_dir = __DIR__ . '/includes/cli/';
+				require_once $cli_dir . 'class-offload-command.php';
+				require_once $cli_dir . 'class-revert-command.php';
+				require_once $cli_dir . 'class-invalidate-command.php';
+				require_once $cli_dir . 'class-bricks-sync-command.php';
+
 				WP_CLI::add_command( 'nbs3 offload', 'NBS3\\CLI\\OffloadCommand' );
 				WP_CLI::add_command( 'nbs3 revert', 'NBS3\\CLI\\RevertCommand' );
+				WP_CLI::add_command( 'nbs3 invalidate', 'NBS3\\CLI\\InvalidateCommand' );
 				WP_CLI::add_command( 'nbs3 sync-bricks', 'NBS3\\CLI\\BricksSyncCommand' );
 			}
 		}
@@ -441,7 +455,7 @@ if ( ! class_exists( 'NBS3' ) ) {
 	 *
 	 * @return NBS3 The main plugin instance.
 	 */
-	function nbs3() {
+	function nbs3() { // phpcs:ignore Universal.Files.SeparateFunctionsFromOO.Mixed -- Global accessor function is standard WordPress pattern for plugins.
 		global $nbs3;
 
 		if ( ! isset( $nbs3 ) ) {

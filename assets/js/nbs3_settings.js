@@ -149,6 +149,80 @@ addEventListener("DOMContentLoaded", function () {
 		});
 	}
 
+	// Master enable/disable toggle with auto-save
+	const masterEnableCheckbox = document.getElementById("plugin_enabled");
+	const masterEnableLabel = document.querySelector(".nbs3-toggle-label");
+	const masterEnableField = document.querySelector(".nbs3-master-enable td");
+	const setupNotice = document.querySelector(".nbs3-setup-notice");
+
+	if (masterEnableCheckbox && masterEnableLabel) {
+		masterEnableCheckbox.addEventListener("change", function () {
+			const isEnabled = this.checked;
+
+			// Update toggle label
+			masterEnableLabel.textContent = isEnabled ? "Saving..." : "Saving...";
+
+			// Update description text
+			if (masterEnableField) {
+				const description = masterEnableField.querySelector(".description");
+				if (description) {
+					description.textContent = "Saving...";
+					description.style.color = "#666";
+				}
+			}
+
+			// Auto-save via AJAX
+			const formData = new URLSearchParams();
+			formData.append('action', 'nbs3_toggle_plugin_status');
+			formData.append('security_nonce', nbs3_ajax_object.save_general_nonce);
+			formData.append('plugin_enabled', isEnabled ? '1' : '0');
+
+			fetch(nbs3_ajax_object.ajax_url, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/x-www-form-urlencoded',
+				},
+				body: formData
+			})
+			.then(response => response.json())
+			.then(data => {
+				if (data.success) {
+					// Update UI to reflect saved state
+					masterEnableLabel.textContent = isEnabled ? "Enabled" : "Disabled";
+
+					if (masterEnableField) {
+						const description = masterEnableField.querySelector(".description");
+						if (description) {
+							if (isEnabled) {
+								description.textContent = "The plugin is active and will offload media to S3.";
+								description.style.color = "#00a32a";
+							} else {
+								description.textContent = "The plugin is disabled. Media will not be offloaded until you enable it.";
+								description.style.color = "";
+							}
+						}
+					}
+
+					// Show/hide setup notice
+					if (setupNotice) {
+						setupNotice.style.display = isEnabled ? "none" : "block";
+					}
+				} else {
+					// Revert on error
+					masterEnableCheckbox.checked = !isEnabled;
+					masterEnableLabel.textContent = !isEnabled ? "Enabled" : "Disabled";
+					alert(data.data?.message || 'Failed to save plugin status.');
+				}
+			})
+			.catch(error => {
+				// Revert on error
+				masterEnableCheckbox.checked = !isEnabled;
+				masterEnableLabel.textContent = !isEnabled ? "Enabled" : "Disabled";
+				console.error('Error saving plugin status:', error);
+			});
+		});
+	}
+
 	// Initialize password toggles (function defined above handles the logic)
 	initPasswordToggles();
 
@@ -156,7 +230,8 @@ addEventListener("DOMContentLoaded", function () {
 	const settingsForm = document.querySelector('#nbs3 form');
 	
 	if (settingsForm) {
-		// Get both sections
+		// Get all sections
+		const masterEnableSection = document.querySelector('.nbs3-master-enable-section');
 		const cloudProviderSection = document.querySelector('.nbs3-cloud-provider-settings');
 		const generalSection = document.querySelector('.nbs3-general-settings');
 		
@@ -355,6 +430,7 @@ addEventListener("DOMContentLoaded", function () {
 				);
 			} else {
 				// Save both general settings and credentials
+				addOverlay(masterEnableSection);
 				addOverlay(cloudProviderSection);
 				addOverlay(generalSection);
 				
@@ -417,10 +493,11 @@ addEventListener("DOMContentLoaded", function () {
 				if (isCredentialsButton) {
 					removeOverlay(cloudProviderSection);
 				} else {
+					removeOverlay(masterEnableSection);
 					removeOverlay(cloudProviderSection);
 					removeOverlay(generalSection);
 				}
-				
+
 				// Remove loading state from the clicked button
 				setButtonLoading(button, false);
 				
@@ -464,10 +541,11 @@ addEventListener("DOMContentLoaded", function () {
 				if (isCredentialsButton) {
 					removeOverlay(cloudProviderSection);
 				} else {
+					removeOverlay(masterEnableSection);
 					removeOverlay(cloudProviderSection);
 					removeOverlay(generalSection);
 				}
-				
+
 				// Remove loading state from the clicked button
 				setButtonLoading(button, false);
 				
@@ -494,10 +572,11 @@ addEventListener("DOMContentLoaded", function () {
 	function initBricksSyncButtons() {
 		const syncNowButton = document.getElementById('nbs3-sync-bricks-now');
 		const removeButton = document.getElementById('nbs3-remove-bricks-s3');
+		const invalidateButton = document.getElementById('nbs3-invalidate-bricks-css');
 		const statusText = document.getElementById('nbs3-bricks-status-text');
 		const actionStatus = document.getElementById('nbs3-bricks-action-status');
 
-		if (!syncNowButton && !removeButton) {
+		if (!syncNowButton && !removeButton && !invalidateButton) {
 			return; // Bricks section not present
 		}
 
@@ -538,44 +617,70 @@ addEventListener("DOMContentLoaded", function () {
 			}
 		}
 
-		// Sync Now button handler
+		// Sync Now button handler with batch processing
 		if (syncNowButton) {
 			syncNowButton.addEventListener('click', function(e) {
 				e.preventDefault();
 
 				setBrickButtonLoading(syncNowButton, true);
 				if (removeButton) removeButton.disabled = true;
-				showActionStatus('Syncing files to S3...');
+				if (invalidateButton) invalidateButton.disabled = true;
 
-				const data = new URLSearchParams();
-				data.append('action', 'nbs3_sync_bricks_now');
-				data.append('security_nonce', nbs3_ajax_object.bricks_sync_nonce);
+				let totalUploaded = 0;
+				let totalErrors = 0;
 
-				fetch(nbs3_ajax_object.ajax_url, {
-					method: 'POST',
-					headers: {
-						'Content-Type': 'application/x-www-form-urlencoded',
-					},
-					body: data
-				})
-				.then(response => response.json())
-				.then(data => {
-					setBrickButtonLoading(syncNowButton, false);
-					if (removeButton) removeButton.disabled = false;
+				// Recursive function to process batches
+				function processBatch() {
+					showActionStatus('Syncing files to S3...');
 
-					if (data.success) {
-						showActionStatus(data.data.message);
-						updateBricksStatus(data.data.status);
-					} else {
-						showActionStatus(data.data?.message || 'Sync failed.', true);
-					}
-				})
-				.catch(error => {
-					setBrickButtonLoading(syncNowButton, false);
-					if (removeButton) removeButton.disabled = false;
-					showActionStatus('An error occurred during sync.', true);
-					console.error('Bricks sync error:', error);
-				});
+					const data = new URLSearchParams();
+					data.append('action', 'nbs3_sync_bricks_now');
+					data.append('security_nonce', nbs3_ajax_object.bricks_sync_nonce);
+
+					fetch(nbs3_ajax_object.ajax_url, {
+						method: 'POST',
+						headers: {
+							'Content-Type': 'application/x-www-form-urlencoded',
+						},
+						body: data
+					})
+					.then(response => response.json())
+					.then(data => {
+						if (data.success) {
+							totalUploaded += data.data.uploaded || 0;
+							totalErrors += data.data.errors || 0;
+							updateBricksStatus(data.data.status);
+							showActionStatus(data.data.message);
+
+							// Continue if there are more files to process
+							if (data.data.has_more) {
+								processBatch();
+							} else {
+								// All done
+								setBrickButtonLoading(syncNowButton, false);
+								if (removeButton) removeButton.disabled = false;
+								if (invalidateButton) invalidateButton.disabled = false;
+								const finalMessage = `Sync completed. ${totalUploaded} uploaded, ${data.data.deleted || 0} deleted.`;
+								showActionStatus(finalMessage);
+							}
+						} else {
+							setBrickButtonLoading(syncNowButton, false);
+							if (removeButton) removeButton.disabled = false;
+							if (invalidateButton) invalidateButton.disabled = false;
+							showActionStatus(data.data?.message || 'Sync failed.', true);
+						}
+					})
+					.catch(error => {
+						setBrickButtonLoading(syncNowButton, false);
+						if (removeButton) removeButton.disabled = false;
+						if (invalidateButton) invalidateButton.disabled = false;
+						showActionStatus('An error occurred during sync.', true);
+						console.error('Bricks sync error:', error);
+					});
+				}
+
+				// Start batch processing
+				processBatch();
 			});
 		}
 
@@ -591,6 +696,7 @@ addEventListener("DOMContentLoaded", function () {
 
 				setBrickButtonLoading(removeButton, true);
 				if (syncNowButton) syncNowButton.disabled = true;
+				if (invalidateButton) invalidateButton.disabled = true;
 				showActionStatus('Removing files from S3...');
 
 				const data = new URLSearchParams();
@@ -608,6 +714,7 @@ addEventListener("DOMContentLoaded", function () {
 				.then(data => {
 					setBrickButtonLoading(removeButton, false);
 					if (syncNowButton) syncNowButton.disabled = false;
+					if (invalidateButton) invalidateButton.disabled = false;
 
 					if (data.success) {
 						showActionStatus(data.data.message);
@@ -619,8 +726,58 @@ addEventListener("DOMContentLoaded", function () {
 				.catch(error => {
 					setBrickButtonLoading(removeButton, false);
 					if (syncNowButton) syncNowButton.disabled = false;
+					if (invalidateButton) invalidateButton.disabled = false;
 					showActionStatus('An error occurred during removal.', true);
 					console.error('Bricks removal error:', error);
+				});
+			});
+		}
+
+		// Invalidate button handler
+		if (invalidateButton) {
+			invalidateButton.addEventListener('click', function(e) {
+				e.preventDefault();
+
+				// Confirm action
+				if (!confirm('Are you sure you want to invalidate all Bricks CSS files? This will attempt to delete from S3 and clear local sync tracking.')) {
+					return;
+				}
+
+				setBrickButtonLoading(invalidateButton, true);
+				if (syncNowButton) syncNowButton.disabled = true;
+				if (removeButton) removeButton.disabled = true;
+				showActionStatus('Invalidating...');
+
+				const data = new URLSearchParams();
+				data.append('action', 'nbs3_invalidate_bricks_css');
+				data.append('security_nonce', nbs3_ajax_object.bricks_invalidate_nonce);
+
+				fetch(nbs3_ajax_object.ajax_url, {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/x-www-form-urlencoded',
+					},
+					body: data
+				})
+				.then(response => response.json())
+				.then(data => {
+					setBrickButtonLoading(invalidateButton, false);
+					if (syncNowButton) syncNowButton.disabled = false;
+					if (removeButton) removeButton.disabled = false;
+
+					if (data.success) {
+						showActionStatus(data.data.message);
+						updateBricksStatus(data.data.status);
+					} else {
+						showActionStatus(data.data?.message || 'Invalidation failed.', true);
+					}
+				})
+				.catch(error => {
+					setBrickButtonLoading(invalidateButton, false);
+					if (syncNowButton) syncNowButton.disabled = false;
+					if (removeButton) removeButton.disabled = false;
+					showActionStatus('An error occurred during invalidation.', true);
+					console.error('Bricks invalidation error:', error);
 				});
 			});
 		}
@@ -630,10 +787,11 @@ addEventListener("DOMContentLoaded", function () {
 	function initBricksThemeAssetsSyncButtons() {
 		const syncNowButton = document.getElementById('nbs3-sync-bricks-theme-assets-now');
 		const removeButton = document.getElementById('nbs3-remove-bricks-theme-assets-s3');
+		const invalidateButton = document.getElementById('nbs3-invalidate-bricks-theme-assets');
 		const statusText = document.getElementById('nbs3-bricks-theme-assets-status-text');
 		const actionStatus = document.getElementById('nbs3-bricks-theme-assets-action-status');
 
-		if (!syncNowButton && !removeButton) {
+		if (!syncNowButton && !removeButton && !invalidateButton) {
 			return; // Theme assets section not present
 		}
 
@@ -674,44 +832,70 @@ addEventListener("DOMContentLoaded", function () {
 			}
 		}
 
-		// Sync Now button handler
+		// Sync Now button handler with batch processing
 		if (syncNowButton) {
 			syncNowButton.addEventListener('click', function(e) {
 				e.preventDefault();
 
 				setButtonLoading(syncNowButton, true);
 				if (removeButton) removeButton.disabled = true;
-				showActionStatus('Syncing theme assets to S3...');
+				if (invalidateButton) invalidateButton.disabled = true;
 
-				const data = new URLSearchParams();
-				data.append('action', 'nbs3_sync_bricks_theme_assets');
-				data.append('security_nonce', nbs3_ajax_object.bricks_theme_assets_sync_nonce);
+				let totalUploaded = 0;
+				let totalErrors = 0;
 
-				fetch(nbs3_ajax_object.ajax_url, {
-					method: 'POST',
-					headers: {
-						'Content-Type': 'application/x-www-form-urlencoded',
-					},
-					body: data
-				})
-				.then(response => response.json())
-				.then(data => {
-					setButtonLoading(syncNowButton, false);
-					if (removeButton) removeButton.disabled = false;
+				// Recursive function to process batches
+				function processBatch() {
+					showActionStatus('Syncing theme assets to S3...');
 
-					if (data.success) {
-						showActionStatus(data.data.message);
-						updateThemeAssetsStatus(data.data.status);
-					} else {
-						showActionStatus(data.data?.message || 'Sync failed.', true);
-					}
-				})
-				.catch(error => {
-					setButtonLoading(syncNowButton, false);
-					if (removeButton) removeButton.disabled = false;
-					showActionStatus('An error occurred during sync.', true);
-					console.error('Theme assets sync error:', error);
-				});
+					const data = new URLSearchParams();
+					data.append('action', 'nbs3_sync_bricks_theme_assets');
+					data.append('security_nonce', nbs3_ajax_object.bricks_theme_assets_sync_nonce);
+
+					fetch(nbs3_ajax_object.ajax_url, {
+						method: 'POST',
+						headers: {
+							'Content-Type': 'application/x-www-form-urlencoded',
+						},
+						body: data
+					})
+					.then(response => response.json())
+					.then(data => {
+						if (data.success) {
+							totalUploaded += data.data.uploaded || 0;
+							totalErrors += data.data.errors || 0;
+							updateThemeAssetsStatus(data.data.status);
+							showActionStatus(data.data.message);
+
+							// Continue if there are more files to process
+							if (data.data.has_more) {
+								processBatch();
+							} else {
+								// All done
+								setButtonLoading(syncNowButton, false);
+								if (removeButton) removeButton.disabled = false;
+								if (invalidateButton) invalidateButton.disabled = false;
+								const finalMessage = `Sync completed. ${totalUploaded} uploaded, ${data.data.deleted || 0} deleted.`;
+								showActionStatus(finalMessage);
+							}
+						} else {
+							setButtonLoading(syncNowButton, false);
+							if (removeButton) removeButton.disabled = false;
+							if (invalidateButton) invalidateButton.disabled = false;
+							showActionStatus(data.data?.message || 'Sync failed.', true);
+						}
+					})
+					.catch(error => {
+						setButtonLoading(syncNowButton, false);
+						if (removeButton) removeButton.disabled = false;
+						if (invalidateButton) invalidateButton.disabled = false;
+						showActionStatus('An error occurred during sync.', true);
+						console.error('Theme assets sync error:', error);
+					});
+				}
+
+				// Start batch processing
+				processBatch();
 			});
 		}
 
@@ -727,6 +911,7 @@ addEventListener("DOMContentLoaded", function () {
 
 				setButtonLoading(removeButton, true);
 				if (syncNowButton) syncNowButton.disabled = true;
+				if (invalidateButton) invalidateButton.disabled = true;
 				showActionStatus('Removing theme assets from S3...');
 
 				const data = new URLSearchParams();
@@ -744,6 +929,7 @@ addEventListener("DOMContentLoaded", function () {
 				.then(data => {
 					setButtonLoading(removeButton, false);
 					if (syncNowButton) syncNowButton.disabled = false;
+					if (invalidateButton) invalidateButton.disabled = false;
 
 					if (data.success) {
 						showActionStatus(data.data.message);
@@ -755,8 +941,58 @@ addEventListener("DOMContentLoaded", function () {
 				.catch(error => {
 					setButtonLoading(removeButton, false);
 					if (syncNowButton) syncNowButton.disabled = false;
+					if (invalidateButton) invalidateButton.disabled = false;
 					showActionStatus('An error occurred during removal.', true);
 					console.error('Theme assets removal error:', error);
+				});
+			});
+		}
+
+		// Invalidate button handler
+		if (invalidateButton) {
+			invalidateButton.addEventListener('click', function(e) {
+				e.preventDefault();
+
+				// Confirm action
+				if (!confirm('Are you sure you want to invalidate all Bricks theme assets? This will attempt to delete from S3 and clear local sync tracking.')) {
+					return;
+				}
+
+				setButtonLoading(invalidateButton, true);
+				if (syncNowButton) syncNowButton.disabled = true;
+				if (removeButton) removeButton.disabled = true;
+				showActionStatus('Invalidating...');
+
+				const data = new URLSearchParams();
+				data.append('action', 'nbs3_invalidate_bricks_theme_assets');
+				data.append('security_nonce', nbs3_ajax_object.bricks_invalidate_nonce);
+
+				fetch(nbs3_ajax_object.ajax_url, {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/x-www-form-urlencoded',
+					},
+					body: data
+				})
+				.then(response => response.json())
+				.then(data => {
+					setButtonLoading(invalidateButton, false);
+					if (syncNowButton) syncNowButton.disabled = false;
+					if (removeButton) removeButton.disabled = false;
+
+					if (data.success) {
+						showActionStatus(data.data.message);
+						updateThemeAssetsStatus(data.data.status);
+					} else {
+						showActionStatus(data.data?.message || 'Invalidation failed.', true);
+					}
+				})
+				.catch(error => {
+					setButtonLoading(invalidateButton, false);
+					if (syncNowButton) syncNowButton.disabled = false;
+					if (removeButton) removeButton.disabled = false;
+					showActionStatus('An error occurred during invalidation.', true);
+					console.error('Theme assets invalidation error:', error);
 				});
 			});
 		}

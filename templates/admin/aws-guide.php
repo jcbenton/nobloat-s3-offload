@@ -79,6 +79,7 @@ if ( ! current_user_can( 'manage_options' ) ) {
 				"s3:PutObject",
 				"s3:GetObject",
 				"s3:DeleteObject",
+				"s3:HeadObject",
 				"s3:ListBucket"
 			],
 			"Resource": [
@@ -94,6 +95,21 @@ if ( ! current_user_can( 'manage_options' ) ) {
 						<li><?php esc_html_e( 'Select "Application running outside AWS"', 'nobloat-s3-offload' ); ?></li>
 						<li><?php esc_html_e( 'Save the Access Key ID and Secret Access Key securely', 'nobloat-s3-offload' ); ?></li>
 					</ol>
+
+					<h3><?php esc_html_e( 'Step 5: Store Credentials Securely (Recommended)', 'nobloat-s3-offload' ); ?></h3>
+					<p><?php esc_html_e( 'For better security, define your credentials in wp-config.php instead of the database:', 'nobloat-s3-offload' ); ?></p>
+					<pre><code>// AWS S3 Credentials
+define( 'NBS3_ACCESS_KEY_ID', 'your-access-key-id' );
+define( 'NBS3_SECRET_ACCESS_KEY', 'your-secret-access-key' );
+define( 'NBS3_BUCKET', 'your-bucket-name' );
+define( 'NBS3_REGION', 'us-east-1' );
+
+// Optional: Custom endpoint for S3-compatible services
+// define( 'NBS3_ENDPOINT', 'https://s3.example.com' );
+
+// Optional: CloudFront or custom CDN domain
+// define( 'NBS3_CDN_DOMAIN', 'https://d1234abcd.cloudfront.net' );</code></pre>
+					<p><?php esc_html_e( 'When credentials are defined in wp-config.php, they take precedence over the plugin settings and cannot be changed from the admin interface.', 'nobloat-s3-offload' ); ?></p>
 				</div>
 			</div>
 
@@ -103,6 +119,10 @@ if ( ! current_user_can( 'manage_options' ) ) {
 				</div>
 				<div class="nbs3-section-content">
 					<p><?php esc_html_e( 'CloudFront is a CDN that caches your S3 files at edge locations worldwide, improving load times for visitors.', 'nobloat-s3-offload' ); ?></p>
+
+					<div class="nbs3-notice nbs3-notice-info">
+						<p><strong><?php esc_html_e( 'Note:', 'nobloat-s3-offload' ); ?></strong> <?php esc_html_e( 'If you use CloudFront with Origin Access Control (OAC), you can enable "Block all public access" on your S3 bucket. This ensures files are only accessible via CloudFront, not directly from S3. The guide below uses OAC which is the recommended approach.', 'nobloat-s3-offload' ); ?></p>
+					</div>
 
 					<h3><?php esc_html_e( 'Step 1: Create a CloudFront Distribution', 'nobloat-s3-offload' ); ?></h3>
 					<ol>
@@ -257,8 +277,64 @@ if ( ! current_user_can( 'manage_options' ) ) {
 							<td>ap-northeast-1</td>
 							<td><?php esc_html_e( 'Asia Pacific (Tokyo)', 'nobloat-s3-offload' ); ?></td>
 						</tr>
+						<tr>
+							<td>ap-south-1</td>
+							<td><?php esc_html_e( 'Asia Pacific (Mumbai)', 'nobloat-s3-offload' ); ?></td>
+						</tr>
+						<tr>
+							<td>sa-east-1</td>
+							<td><?php esc_html_e( 'South America (São Paulo)', 'nobloat-s3-offload' ); ?></td>
+						</tr>
+						<tr>
+							<td>ca-central-1</td>
+							<td><?php esc_html_e( 'Canada (Central)', 'nobloat-s3-offload' ); ?></td>
+						</tr>
 					</table>
 					<p><?php esc_html_e( 'Choose a region closest to your primary audience for best performance.', 'nobloat-s3-offload' ); ?></p>
+				</div>
+			</div>
+
+			<div class="nbs3-section">
+				<div class="nbs3-section-header">
+					<h2><?php esc_html_e( 'Troubleshooting', 'nobloat-s3-offload' ); ?></h2>
+				</div>
+				<div class="nbs3-section-content">
+					<h3><?php esc_html_e( 'Common Issues', 'nobloat-s3-offload' ); ?></h3>
+
+					<h4><?php esc_html_e( '"Access Denied" when uploading files', 'nobloat-s3-offload' ); ?></h4>
+					<ul>
+						<li><?php esc_html_e( 'Verify your IAM user has s3:PutObject permission', 'nobloat-s3-offload' ); ?></li>
+						<li><?php esc_html_e( 'Check that the bucket name in the IAM policy matches your actual bucket', 'nobloat-s3-offload' ); ?></li>
+						<li><?php esc_html_e( 'Ensure the Access Key ID and Secret Access Key are correct', 'nobloat-s3-offload' ); ?></li>
+					</ul>
+
+					<h4><?php esc_html_e( 'Images not displaying after offload', 'nobloat-s3-offload' ); ?></h4>
+					<ul>
+						<li><?php esc_html_e( 'Verify the bucket policy allows public read access (s3:GetObject)', 'nobloat-s3-offload' ); ?></li>
+						<li><?php esc_html_e( 'If using CloudFront, ensure the distribution is deployed and the bucket policy includes CloudFront access', 'nobloat-s3-offload' ); ?></li>
+						<li><?php esc_html_e( 'Check that "Block all public access" is disabled on the bucket (unless using CloudFront OAC)', 'nobloat-s3-offload' ); ?></li>
+					</ul>
+
+					<h4><?php esc_html_e( 'CORS errors with fonts or assets', 'nobloat-s3-offload' ); ?></h4>
+					<ul>
+						<li><?php esc_html_e( 'Ensure CORS is configured on the S3 bucket', 'nobloat-s3-offload' ); ?></li>
+						<li><?php esc_html_e( 'If using CloudFront, set the Origin request policy to "CORS-S3Origin"', 'nobloat-s3-offload' ); ?></li>
+						<li><?php esc_html_e( 'For stricter security, set AllowedOrigins to your specific domain(s)', 'nobloat-s3-offload' ); ?></li>
+					</ul>
+
+					<h4><?php esc_html_e( '"Invalid bucket name" or connection errors', 'nobloat-s3-offload' ); ?></h4>
+					<ul>
+						<li><?php esc_html_e( 'Bucket names must be globally unique and follow AWS naming rules', 'nobloat-s3-offload' ); ?></li>
+						<li><?php esc_html_e( 'Verify the region matches where your bucket was created', 'nobloat-s3-offload' ); ?></li>
+						<li><?php esc_html_e( 'Check for typos in the bucket name, region, or credentials', 'nobloat-s3-offload' ); ?></li>
+					</ul>
+
+					<h4><?php esc_html_e( 'Files not updating after edit', 'nobloat-s3-offload' ); ?></h4>
+					<ul>
+						<li><?php esc_html_e( 'If using CloudFront, create an invalidation for the affected paths', 'nobloat-s3-offload' ); ?></li>
+						<li><?php esc_html_e( 'Clear your browser cache and any WordPress caching plugins', 'nobloat-s3-offload' ); ?></li>
+						<li><?php esc_html_e( 'Consider enabling "Object Versioning" in the plugin settings to bypass caching issues', 'nobloat-s3-offload' ); ?></li>
+					</ul>
 				</div>
 			</div>
 

@@ -954,3 +954,140 @@ button.nbs3-save-credentials.loading::after {
 		padding: 12px 15px;
 	}
 }
+
+/* Master Enable/Disable Toggle */
+.nbs3-master-enable-section {
+	border: 2px solid #2271b1;
+	background: linear-gradient(135deg, #f0f6fc 0%, #ffffff 100%);
+}
+
+.nbs3-master-enable-section .nbs3-section-header {
+	background: linear-gradient(135deg, #2271b1 0%, #135e96 100%);
+	color: #fff;
+}
+
+.nbs3-master-enable-section .nbs3-section-header h2 {
+	color: #fff;
+}
+
+.nbs3-setup-notice {
+	background: #fff8e5;
+	border-left: 4px solid #dba617;
+	padding: 15px 20px;
+	margin-bottom: 10px;
+	border-radius: 0 4px 4px 0;
+}
+
+.nbs3-setup-notice p {
+	margin: 0 0 10px 0;
+	color: #1d2327;
+}
+
+.nbs3-setup-notice ol {
+	margin: 0 0 0 20px;
+	padding: 0;
+	color: #3c434a;
+}
+
+.nbs3-setup-notice ol li {
+	margin-bottom: 8px;
+	line-height: 1.5;
+}
+
+/* Toggle Switch */
+.nbs3-master-toggle {
+	display: flex;
+	align-items: center;
+	gap: 15px;
+	margin-bottom: 10px;
+}
+
+.nbs3-toggle-switch {
+	position: relative;
+	display: inline-block;
+	width: 60px;
+	height: 32px;
+	cursor: pointer;
+}
+
+.nbs3-toggle-switch input {
+	opacity: 0;
+	width: 0;
+	height: 0;
+}
+
+.nbs3-toggle-slider {
+	position: absolute;
+	cursor: pointer;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background-color: #ccc;
+	transition: 0.3s;
+	border-radius: 32px;
+}
+
+.nbs3-toggle-slider:before {
+	position: absolute;
+	content: "";
+	height: 24px;
+	width: 24px;
+	left: 4px;
+	bottom: 4px;
+	background-color: white;
+	transition: 0.3s;
+	border-radius: 50%;
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.nbs3-toggle-switch input:checked + .nbs3-toggle-slider {
+	background-color: #00a32a;
+}
+
+.nbs3-toggle-switch input:checked + .nbs3-toggle-slider:before {
+	transform: translateX(28px);
+}
+
+.nbs3-toggle-switch input:focus + .nbs3-toggle-slider {
+	box-shadow: 0 0 0 2px rgba(34, 113, 177, 0.4);
+}
+
+.nbs3-toggle-label {
+	font-size: 16px;
+	font-weight: 600;
+	color: #1d2327;
+}
+
+/* Disabled plugin state styling for other sections */
+.nbs3-plugin-disabled .nbs3-section:not(.nbs3-master-enable-section) {
+	opacity: 0.6;
+	pointer-events: none;
+}
+
+.nbs3-plugin-disabled .nbs3-section:not(.nbs3-master-enable-section)::after {
+	content: "";
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: rgba(255, 255, 255, 0.3);
+	cursor: not-allowed;
+}
+
+@media screen and (max-width: 782px) {
+	.nbs3-toggle-switch {
+		width: 52px;
+		height: 28px;
+	}
+
+	.nbs3-toggle-slider:before {
+		height: 20px;
+		width: 20px;
+	}
+
+	.nbs3-toggle-switch input:checked + .nbs3-toggle-slider:before {
+		transform: translateX(24px);
+	}
+}

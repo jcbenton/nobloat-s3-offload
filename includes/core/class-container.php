@@ -8,6 +8,8 @@
 
 namespace NBS3\Core;
 
+defined( 'ABSPATH' ) || exit;
+
 /**
  * Class Container
  *

@@ -11,6 +11,8 @@
 
 namespace NBS3\Services;
 
+defined( 'ABSPATH' ) || exit;
+
 use NBS3\S3Provider;
 use NBS3\Traits\OffloaderTrait;
 
@@ -139,12 +141,14 @@ class CloudAttachmentUploader {
 		 * Filter to determine whether an updated attachment should be re-offloaded.
 		 *
 		 * Return false to skip uploading the updated file and sizes.
+		 * This filter is specific to attachment updates (e.g., image editor saves).
 		 *
+		 * @since 1.0.0
 		 * @param bool  $should_offload Default true.
 		 * @param int   $attachment_id  Attachment ID.
 		 * @param array $metadata       Attachment metadata.
 		 */
-		$should_offload = apply_filters( 'nbs3_should_offload_attachment', true, $attachment_id, $metadata );
+		$should_offload = apply_filters( 'nbs3_should_offload_updated_attachment', true, $attachment_id, $metadata );
 		if ( ! $should_offload ) {
 			return true;
 		}
@@ -196,13 +200,15 @@ class CloudAttachmentUploader {
 		 * Filter to determine whether regenerated thumbnails should be offloaded.
 		 *
 		 * Return false to skip offloading regenerated thumbnails.
+		 * This filter is specific to thumbnail regeneration operations.
 		 *
+		 * @since 1.0.0
 		 * @param bool  $should_offload Default true.
 		 * @param int   $attachment_id  Attachment ID.
 		 * @param array $new_metadata   New attachment metadata.
 		 * @param array $old_metadata   Old attachment metadata.
 		 */
-		$should_offload = apply_filters( 'nbs3_should_offload_attachment', true, $attachment_id );
+		$should_offload = apply_filters( 'nbs3_should_offload_regenerated_thumbnails', true, $attachment_id, $new_metadata, $old_metadata );
 		if ( ! $should_offload ) {
 			return false;
 		}
@@ -416,10 +422,17 @@ class CloudAttachmentUploader {
 
 		$file          = get_attached_file( $attachment_id );
 		$subdir        = $this->get_attachment_subdir( $attachment_id );
-		$upload_result = $this->s3_provider->upload_file( $file, $subdir . wp_basename( $file ) );
+		$s3_key        = $subdir . wp_basename( $file );
+		$upload_result = $this->s3_provider->upload_file( $file, $s3_key );
 
 		if ( ! $upload_result ) {
-			$this->log_error( $attachment_id, 'Failed to upload main file to cloud storage.' );
+			$s3_error  = $this->s3_provider->get_last_error();
+			$error_msg = 'Failed to upload main file to cloud storage.';
+			if ( $s3_error ) {
+				$error_msg .= ' S3 Error: ' . $s3_error;
+			}
+			$error_msg .= ' File: ' . $file . ' Key: ' . $s3_key;
+			$this->log_error( $attachment_id, $error_msg );
 			return false;
 		}
 
@@ -440,7 +453,12 @@ class CloudAttachmentUploader {
 					$file_path     = $file_dir . $size_file;
 					$upload_result = $this->s3_provider->upload_file( $file_path, $subdir . $size_file );
 					if ( ! $upload_result ) {
-						$this->log_error( $attachment_id, "Failed to upload size '{$size}' file '{$size_file}' to cloud storage." );
+						$s3_error  = $this->s3_provider->get_last_error();
+						$error_msg = "Failed to upload size '{$size}' file '{$size_file}' to cloud storage.";
+						if ( $s3_error ) {
+							$error_msg .= ' S3 Error: ' . $s3_error;
+						}
+						$this->log_error( $attachment_id, $error_msg );
 						return false;
 					}
 				}
@@ -462,7 +480,12 @@ class CloudAttachmentUploader {
 			$original_image = wp_get_original_image_path( $attachment_id );
 			$upload_result  = $this->s3_provider->upload_file( $original_image, $subdir . wp_basename( $original_image ) );
 			if ( ! $upload_result ) {
-				$this->log_error( $attachment_id, 'Failed to upload original image to cloud storage.' );
+				$s3_error  = $this->s3_provider->get_last_error();
+				$error_msg = 'Failed to upload original image to cloud storage.';
+				if ( $s3_error ) {
+					$error_msg .= ' S3 Error: ' . $s3_error;
+				}
+				$this->log_error( $attachment_id, $error_msg );
 				return false;
 			}
 		}
@@ -478,7 +501,12 @@ class CloudAttachmentUploader {
 				if ( file_exists( $source_path ) ) {
 					$upload_result = $this->s3_provider->upload_file( $source_path, $subdir . $source_file );
 					if ( ! $upload_result ) {
-						$this->log_error( $attachment_id, "Failed to upload source file '{$source_file}' to cloud storage." );
+						$s3_error  = $this->s3_provider->get_last_error();
+						$error_msg = "Failed to upload source file '{$source_file}' to cloud storage.";
+						if ( $s3_error ) {
+							$error_msg .= ' S3 Error: ' . $s3_error;
+						}
+						$this->log_error( $attachment_id, $error_msg );
 						return false;
 					}
 				}
@@ -487,7 +515,16 @@ class CloudAttachmentUploader {
 
 		$delete_local_rule = $this->should_delete_local();
 		if ( 0 !== $delete_local_rule ) {
-			$this->delete_local_file( $attachment_id, $delete_local_rule );
+			// Safety valve: When object versioning is OFF and retention policy is Full Cloud Migration (2),
+			// check if a collision occurred (file already existed in S3). If so, keep local copy to prevent data loss.
+			if ( 2 === $delete_local_rule && $this->had_potential_collision( $attachment_id, $s3_key ) ) {
+				// Log that we're keeping the local file due to potential collision.
+				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional info logging.
+				error_log( "NBS3: Keeping local file for attachment {$attachment_id} - potential S3 collision detected (versioning off, same key existed)." );
+				update_post_meta( $attachment_id, 'nbs3_local_kept_reason', 'collision_safety' );
+			} else {
+				$this->delete_local_file( $attachment_id, $delete_local_rule );
+			}
 		}
 
 		/**
@@ -512,14 +549,18 @@ class CloudAttachmentUploader {
 	 * @return void
 	 */
 	private function log_error( int $attachment_id, string $specific_error ): void {
-		$general_error = $specific_error . ' Please review your Cloud provider credentials or connection settings. For more details, enable debug.log and check the logs.';
-
 		$error_log = get_post_meta( $attachment_id, 'nbs3_error_log', true );
 		if ( ! is_array( $error_log ) ) {
 			$error_log = array();
 		}
 
-		$error_log[] = $general_error;
+		// Add timestamp to error.
+		$timestamped_error = '[' . gmdate( 'Y-m-d H:i:s' ) . '] ' . $specific_error;
+		$error_log[]       = $timestamped_error;
+
+		// Also log to error_log for debugging.
+		// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging.
+		error_log( 'NBS3 Offload Error (Attachment ' . $attachment_id . '): ' . $specific_error );
 
 		update_post_meta( $attachment_id, 'nbs3_error_log', $error_log );
 		update_post_meta( $attachment_id, 'nbs3_offloaded', false );
@@ -674,5 +715,81 @@ class CloudAttachmentUploader {
 
 		// Return true if no errors, false otherwise.
 		return empty( $errors );
+	}
+
+	/**
+	 * Check if there was a potential S3 collision (file existed before upload).
+	 *
+	 * This safety check only applies when object versioning is disabled.
+	 * When versioning is enabled, each file gets a unique timestamp path,
+	 * so collisions are not possible.
+	 *
+	 * @since 1.0.8
+	 * @param int    $attachment_id The attachment ID.
+	 * @param string $s3_key        The S3 object key that was uploaded (reserved for future use).
+	 * @return bool True if a potential collision was detected, false otherwise.
+	 */
+	private function had_potential_collision( int $attachment_id, string $s3_key ): bool {
+		unset( $s3_key ); // Reserved for future collision detection by S3 key.
+		// Check if object versioning is enabled - if so, no collision possible.
+		$settings          = $this->get_cached_settings();
+		$object_versioning = isset( $settings['object_versioning'] ) ? $settings['object_versioning'] : '1';
+
+		if ( $object_versioning ) {
+			// Versioning is ON, each upload gets unique timestamp path - no collision.
+			return false;
+		}
+
+		// Versioning is OFF. Check if this S3 key existed before this upload.
+		// We check by seeing if another attachment already uses this same nbs3_path + filename.
+		$file         = get_attached_file( $attachment_id );
+		$filename     = wp_basename( $file );
+		$current_path = get_post_meta( $attachment_id, 'nbs3_path', true );
+
+		// Query for other attachments with the same S3 path (excluding current attachment).
+		// This query runs once per attachment during offload (not in bulk), and is necessary
+		// for collision safety. The meta_query on indexed keys with a limit of 1 has minimal impact.
+		// phpcs:disable WordPressVIPMinimum.Performance.WPQueryParams.PostNotIn_post__not_in, WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+		$args = array(
+			'post_type'      => 'attachment',
+			'post_status'    => 'any',
+			'posts_per_page' => 1,
+			'post__not_in'   => array( $attachment_id ),
+			'meta_query'     => array(
+				'relation' => 'AND',
+				array(
+					'key'     => 'nbs3_offloaded',
+					'value'   => '1',
+					'compare' => '=',
+				),
+				array(
+					'key'     => 'nbs3_path',
+					'value'   => $current_path,
+					'compare' => '=',
+				),
+			),
+			'fields'         => 'ids',
+		);
+		// phpcs:enable
+
+		$existing_attachments = get_posts( $args );
+
+		// Check if any of the existing attachments have the same filename.
+		foreach ( $existing_attachments as $existing_id ) {
+			$existing_file     = get_attached_file( $existing_id );
+			$existing_filename = wp_basename( $existing_file );
+
+			if ( $existing_filename === $filename ) {
+				// Same filename in same S3 path - collision detected.
+				return true;
+			}
+		}
+
+		// Also check if the object existed in S3 before (double-check via S3).
+		// This catches cases where the file exists in S3 but not in WordPress DB.
+		// However, this requires an additional S3 API call, so we use the faster
+		// database check above as the primary method.
+
+		return false;
 	}
 }

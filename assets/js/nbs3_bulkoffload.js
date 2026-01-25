@@ -20,6 +20,11 @@
 	};
 
 	const init = () => {
+		// Guard against missing elements (e.g., when bulk offload section is not shown).
+		if (!elements.progressContainer) {
+			return;
+		}
+
 		elements.messageContainer.id = "nbs3-message-container";
 		elements.progressContainer.parentNode.insertBefore(
 			elements.messageContainer,
@@ -222,4 +227,251 @@
 	};
 
 	document.addEventListener("DOMContentLoaded", init);
+
+	// Media Sync Buttons Functionality
+	document.addEventListener("DOMContentLoaded", initMediaSyncButtons);
+
+	function initMediaSyncButtons() {
+		const syncButton = document.getElementById('nbs3-sync-media-now');
+		const removeButton = document.getElementById('nbs3-remove-media-s3');
+		const invalidateButton = document.getElementById('nbs3-invalidate-media');
+		const actionStatus = document.getElementById('nbs3-media-action-status');
+		const statusText = document.getElementById('nbs3-media-status-text');
+
+		if (!syncButton && !removeButton && !invalidateButton) {
+			return; // Media actions section not present
+		}
+
+		// Helper to show action status message
+		function showActionStatus(message, isError = false) {
+			if (actionStatus) {
+				actionStatus.textContent = message;
+				actionStatus.style.color = isError ? '#b32d2e' : '#00a32a';
+				setTimeout(() => {
+					actionStatus.textContent = '';
+				}, 5000);
+			}
+		}
+
+		// Helper to update status display (same format as Bricks)
+		function updateMediaStatus(status) {
+			if (statusText && status) {
+				statusText.textContent = `${status.offloaded} offloaded, ${status.non_offloaded} pending, ${status.total} total`;
+			}
+		}
+
+		// Helper to set button loading state
+		function setButtonLoading(button, isLoading) {
+			if (isLoading) {
+				button.disabled = true;
+				button.classList.add('updating-message');
+				button.setAttribute('data-original-text', button.textContent);
+				button.textContent = 'Working...';
+			} else {
+				button.disabled = false;
+				button.classList.remove('updating-message');
+				const originalText = button.getAttribute('data-original-text');
+				if (originalText) {
+					button.textContent = originalText;
+				}
+			}
+		}
+
+		// Helper to disable all buttons
+		function setAllButtonsDisabled(disabled) {
+			if (syncButton) syncButton.disabled = disabled;
+			if (removeButton) removeButton.disabled = disabled;
+			if (invalidateButton) invalidateButton.disabled = disabled;
+		}
+
+		// Sync Now button handler with batch processing
+		if (syncButton) {
+			syncButton.addEventListener('click', function(e) {
+				e.preventDefault();
+
+				setButtonLoading(syncButton, true);
+				setAllButtonsDisabled(true);
+
+				let totalUploaded = 0;
+				let totalErrors = 0;
+				let initialTotal = 0;
+				let retryCount = 0;
+				const maxRetries = 2;
+
+				function processBatch() {
+					const data = new URLSearchParams();
+					data.append('action', 'nbs3_sync_media_now');
+					data.append('security_nonce', nbs3_ajax_object.media_sync_nonce);
+
+					fetch(nbs3_ajax_object.ajax_url, {
+						method: 'POST',
+						headers: {
+							'Content-Type': 'application/x-www-form-urlencoded',
+						},
+						body: data
+					})
+					.then(response => {
+						if (!response.ok) {
+							throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+						}
+						return response.json();
+					})
+					.then(data => {
+						retryCount = 0; // Reset retry count on success
+						if (data.success) {
+							totalUploaded += data.data.uploaded || 0;
+							totalErrors += data.data.errors || 0;
+
+							// Track initial total on first batch
+							if (initialTotal === 0 && data.data.status) {
+								initialTotal = data.data.status.non_offloaded + totalUploaded;
+							}
+
+							// Update status text with progress like "Syncing... 50/650"
+							if (data.data.has_more && statusText) {
+								const processed = totalUploaded;
+								const total = initialTotal || (data.data.remaining + totalUploaded);
+								statusText.textContent = `Syncing... ${processed}/${total}`;
+							}
+
+							updateMediaStatus(data.data.status);
+							showActionStatus(data.data.message);
+
+							if (data.data.has_more) {
+								// Small delay between batches to prevent server overload
+								setTimeout(processBatch, 500);
+							} else {
+								setButtonLoading(syncButton, false);
+								setAllButtonsDisabled(false);
+								let finalMessage = `Sync completed. ${totalUploaded} uploaded.`;
+								if (totalErrors > 0) {
+									finalMessage += ` ${totalErrors} errors.`;
+								}
+								showActionStatus(finalMessage);
+								updateMediaStatus(data.data.status);
+							}
+						} else {
+							setButtonLoading(syncButton, false);
+							setAllButtonsDisabled(false);
+							showActionStatus(data.data?.message || 'Sync failed.', true);
+						}
+					})
+					.catch(error => {
+						console.error('Media sync error:', error);
+
+						// Retry on network errors
+						if (retryCount < maxRetries) {
+							retryCount++;
+							console.log(`Retrying batch (attempt ${retryCount})...`);
+							setTimeout(processBatch, 2000);
+							return;
+						}
+
+						setButtonLoading(syncButton, false);
+						setAllButtonsDisabled(false);
+						showActionStatus(`Sync error: ${error.message}`, true);
+					});
+				}
+
+				// Show initial syncing message
+				if (statusText) {
+					statusText.textContent = 'Syncing...';
+				}
+
+				processBatch();
+			});
+		}
+
+		// Remove from S3 button handler
+		if (removeButton) {
+			removeButton.addEventListener('click', function(e) {
+				e.preventDefault();
+
+				if (!confirm('Are you sure you want to remove all offloaded media files from S3? This action cannot be undone.')) {
+					return;
+				}
+
+				setButtonLoading(removeButton, true);
+				setAllButtonsDisabled(true);
+				showActionStatus('Removing media files from S3...');
+
+				const data = new URLSearchParams();
+				data.append('action', 'nbs3_remove_media_from_s3');
+				data.append('security_nonce', nbs3_ajax_object.media_remove_nonce);
+
+				fetch(nbs3_ajax_object.ajax_url, {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/x-www-form-urlencoded',
+					},
+					body: data
+				})
+				.then(response => response.json())
+				.then(data => {
+					setButtonLoading(removeButton, false);
+					setAllButtonsDisabled(false);
+
+					if (data.success) {
+						showActionStatus(data.data.message);
+						// Reload page to update stats
+						setTimeout(() => location.reload(), 2000);
+					} else {
+						showActionStatus(data.data?.message || 'Removal failed.', true);
+					}
+				})
+				.catch(error => {
+					setButtonLoading(removeButton, false);
+					setAllButtonsDisabled(false);
+					showActionStatus('An error occurred during removal.', true);
+					console.error('Media removal error:', error);
+				});
+			});
+		}
+
+		// Invalidate button handler
+		if (invalidateButton) {
+			invalidateButton.addEventListener('click', function(e) {
+				e.preventDefault();
+
+				if (!confirm('Are you sure you want to invalidate all media offload tracking? This clears local metadata but does NOT delete files from S3.')) {
+					return;
+				}
+
+				setButtonLoading(invalidateButton, true);
+				setAllButtonsDisabled(true);
+				showActionStatus('Invalidating...');
+
+				const data = new URLSearchParams();
+				data.append('action', 'nbs3_invalidate_media');
+				data.append('security_nonce', nbs3_ajax_object.media_invalidate_nonce);
+
+				fetch(nbs3_ajax_object.ajax_url, {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/x-www-form-urlencoded',
+					},
+					body: data
+				})
+				.then(response => response.json())
+				.then(data => {
+					setButtonLoading(invalidateButton, false);
+					setAllButtonsDisabled(false);
+
+					if (data.success) {
+						showActionStatus(data.data.message);
+						// Reload page to update stats
+						setTimeout(() => location.reload(), 2000);
+					} else {
+						showActionStatus(data.data?.message || 'Invalidation failed.', true);
+					}
+				})
+				.catch(error => {
+					setButtonLoading(invalidateButton, false);
+					setAllButtonsDisabled(false);
+					showActionStatus('An error occurred during invalidation.', true);
+					console.error('Media invalidation error:', error);
+				});
+			});
+		}
+	}
 })();

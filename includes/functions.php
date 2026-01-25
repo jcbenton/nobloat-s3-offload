@@ -81,11 +81,14 @@ if ( ! function_exists( 'nbs3_is_settings_page' ) ) {
 		$current_page = isset( $_GET['page'] ) ? sanitize_text_field( wp_unslash( $_GET['page'] ) ) : '';
 
 		$plugin_pages = array(
-			'general'        => 'nbs3',
-			'media-overview' => 'nbs3_media_overview',
-			'aws-guide'      => 'nbs3_aws_guide',
-			'documentation'  => 'nbs3_documentation',
-			'about'          => 'nbs3_about',
+			'plugin-status' => 'nbs3',
+			'settings'      => 'nbs3_settings',
+			'connection'    => 'nbs3_connection',
+			'media'         => 'nbs3_media',
+			'bricks'        => 'nbs3_bricks',
+			'aws-guide'     => 'nbs3_aws_guide',
+			'documentation' => 'nbs3_documentation',
+			'about'         => 'nbs3_about',
 		);
 
 		if ( ! empty( $page_name ) ) {
@@ -262,12 +265,19 @@ if ( ! function_exists( 'nbs3_get_unoffloaded_media_items_count' ) ) {
 	function nbs3_get_unoffloaded_media_items_count(): int {
 		global $wpdb;
 
-		$query = "SELECT COUNT(*) FROM {$wpdb->posts} p
-            LEFT JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id AND pm.meta_key = 'nbs3_offloaded'
-            WHERE p.post_type = 'attachment'
-            AND (pm.meta_value IS NULL OR pm.meta_value = '')";
+		$query = $wpdb->prepare(
+			'SELECT COUNT(*) FROM %i p
+			LEFT JOIN %i pm ON p.ID = pm.post_id AND pm.meta_key = %s
+			WHERE p.post_type = %s
+			AND (pm.meta_value IS NULL OR pm.meta_value = %s)',
+			$wpdb->posts,
+			$wpdb->postmeta,
+			'nbs3_offloaded',
+			'attachment',
+			''
+		);
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Complex JOIN query counting unoffloaded attachments.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Query is fully prepared above.
 		return (int) $wpdb->get_var( $query );
 	}
 }
@@ -282,23 +292,125 @@ if ( ! function_exists( 'nbs3_get_offloaded_media_items_count' ) ) {
 		global $wpdb;
 
 		$query = $wpdb->prepare(
-			"SELECT COUNT(DISTINCT p.ID)
-            FROM {$wpdb->posts} p
-            INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id
-            WHERE p.post_type = %s
-            AND p.post_status != %s
-            AND pm.meta_key = %s
-            AND pm.meta_value != %s",
-			array(
-				'attachment',
-				'trash',
-				'nbs3_offloaded',
-				'',
-			)
+			'SELECT COUNT(DISTINCT p.ID)
+			FROM %i p
+			INNER JOIN %i pm ON p.ID = pm.post_id
+			WHERE p.post_type = %s
+			AND p.post_status != %s
+			AND pm.meta_key = %s
+			AND pm.meta_value != %s',
+			$wpdb->posts,
+			$wpdb->postmeta,
+			'attachment',
+			'trash',
+			'nbs3_offloaded',
+			''
 		);
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Query is prepared above.
 		return (int) $wpdb->get_var( $query );
+	}
+}
+
+if ( ! function_exists( 'nbs3_get_unoffloaded_media_item_ids' ) ) {
+	/**
+	 * Get IDs of unoffloaded media items.
+	 *
+	 * @param int $limit Maximum number of IDs to return. Default 0 (no limit).
+	 * @return array Array of attachment IDs.
+	 */
+	function nbs3_get_unoffloaded_media_item_ids( int $limit = 0 ): array {
+		global $wpdb;
+
+		if ( $limit > 0 ) {
+			$query = $wpdb->prepare(
+				'SELECT p.ID FROM %i p
+				LEFT JOIN %i pm ON p.ID = pm.post_id AND pm.meta_key = %s
+				WHERE p.post_type = %s
+				AND p.post_status != %s
+				AND (pm.meta_value IS NULL OR pm.meta_value = %s)
+				ORDER BY p.ID ASC
+				LIMIT %d',
+				$wpdb->posts,
+				$wpdb->postmeta,
+				'nbs3_offloaded',
+				'attachment',
+				'trash',
+				'',
+				$limit
+			);
+		} else {
+			$query = $wpdb->prepare(
+				'SELECT p.ID FROM %i p
+				LEFT JOIN %i pm ON p.ID = pm.post_id AND pm.meta_key = %s
+				WHERE p.post_type = %s
+				AND p.post_status != %s
+				AND (pm.meta_value IS NULL OR pm.meta_value = %s)
+				ORDER BY p.ID ASC',
+				$wpdb->posts,
+				$wpdb->postmeta,
+				'nbs3_offloaded',
+				'attachment',
+				'trash',
+				''
+			);
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Query is fully prepared above.
+		return array_map( 'intval', $wpdb->get_col( $query ) );
+	}
+}
+
+if ( ! function_exists( 'nbs3_get_offloaded_media_item_ids' ) ) {
+	/**
+	 * Get IDs of offloaded media items.
+	 *
+	 * @param int $limit Maximum number of IDs to return. Default 0 (no limit).
+	 * @return array Array of attachment IDs.
+	 */
+	function nbs3_get_offloaded_media_item_ids( int $limit = 0 ): array {
+		global $wpdb;
+
+		if ( $limit > 0 ) {
+			$query = $wpdb->prepare(
+				'SELECT DISTINCT p.ID
+				FROM %i p
+				INNER JOIN %i pm ON p.ID = pm.post_id
+				WHERE p.post_type = %s
+				AND p.post_status != %s
+				AND pm.meta_key = %s
+				AND pm.meta_value != %s
+				ORDER BY p.ID ASC
+				LIMIT %d',
+				$wpdb->posts,
+				$wpdb->postmeta,
+				'attachment',
+				'trash',
+				'nbs3_offloaded',
+				'',
+				$limit
+			);
+		} else {
+			$query = $wpdb->prepare(
+				'SELECT DISTINCT p.ID
+				FROM %i p
+				INNER JOIN %i pm ON p.ID = pm.post_id
+				WHERE p.post_type = %s
+				AND p.post_status != %s
+				AND pm.meta_key = %s
+				AND pm.meta_value != %s
+				ORDER BY p.ID ASC',
+				$wpdb->posts,
+				$wpdb->postmeta,
+				'attachment',
+				'trash',
+				'nbs3_offloaded',
+				''
+			);
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Query is fully prepared above.
+		return array_map( 'intval', $wpdb->get_col( $query ) );
 	}
 }
 
@@ -417,6 +529,18 @@ if ( ! function_exists( 'nbs3_is_bricks_active' ) ) {
 	 */
 	function nbs3_is_bricks_active(): bool {
 		return defined( 'BRICKS_VERSION' );
+	}
+}
+
+if ( ! function_exists( 'nbs3_is_plugin_enabled' ) ) {
+	/**
+	 * Check if the plugin is enabled via the master toggle.
+	 *
+	 * @since 1.0.8
+	 * @return bool True if the plugin is enabled, false otherwise.
+	 */
+	function nbs3_is_plugin_enabled(): bool {
+		return (bool) nbs3_get_setting( 'plugin_enabled', 0 );
 	}
 }
 

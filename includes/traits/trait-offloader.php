@@ -10,6 +10,8 @@
 
 namespace NBS3\Traits;
 
+defined( 'ABSPATH' ) || exit;
+
 /**
  * Trait OffloaderTrait
  *
@@ -21,6 +23,44 @@ namespace NBS3\Traits;
 trait OffloaderTrait {
 
 	/**
+	 * Cached settings array to avoid repeated database queries.
+	 *
+	 * @since 1.0.6
+	 * @var array|null
+	 */
+	private static ?array $settings_cache = null;
+
+	/**
+	 * Get the plugin settings with caching.
+	 *
+	 * Caches the settings for the duration of the request to avoid
+	 * repeated get_option() calls during bulk operations.
+	 *
+	 * @since 1.0.6
+	 *
+	 * @return array The plugin settings.
+	 */
+	private function get_cached_settings(): array {
+		if ( null === self::$settings_cache ) {
+			self::$settings_cache = get_option( 'nbs3_settings', array() );
+		}
+		return self::$settings_cache;
+	}
+
+	/**
+	 * Clear the settings cache.
+	 *
+	 * Call this when settings are updated to ensure fresh values.
+	 *
+	 * @since 1.0.6
+	 *
+	 * @return void
+	 */
+	public static function clear_settings_cache(): void {
+		self::$settings_cache = null;
+	}
+
+	/**
 	 * Get the configured path prefix for S3 object storage.
 	 *
 	 * Retrieves the path prefix from plugin settings if enabled.
@@ -30,7 +70,7 @@ trait OffloaderTrait {
 	 * @return string The sanitized path prefix with trailing slash, or empty string if disabled.
 	 */
 	private function get_path_prefix(): string {
-		$settings      = get_option( 'nbs3_settings', array() );
+		$settings      = $this->get_cached_settings();
 		$prefix_active = $settings['path_prefix_active'] ?? false;
 		$path_prefix   = $settings['path_prefix'] ?? '';
 
@@ -59,8 +99,8 @@ trait OffloaderTrait {
 			return trailingslashit( $existing_version );
 		}
 
-		$settings          = get_option( 'nbs3_settings' );
-		$object_versioning = isset( $settings['object_versioning'] ) ? $settings['object_versioning'] : '0';
+		$settings          = $this->get_cached_settings();
+		$object_versioning = isset( $settings['object_versioning'] ) ? $settings['object_versioning'] : '1';
 
 		if ( ! $object_versioning ) {
 			return '';
@@ -100,7 +140,14 @@ trait OffloaderTrait {
 		$file_path = get_attached_file( $attachment_id );
 
 		if ( isset( $metadata['file'] ) ) {
-			$dirname = nbs3_is_media_organized_by_year_month() ? trailingslashit( dirname( $metadata['file'] ) ) : '';
+			$dirname = '';
+			if ( nbs3_is_media_organized_by_year_month() ) {
+				$dir = dirname( $metadata['file'] );
+				// Handle files in uploads root (dirname returns '.' for files without directory).
+				if ( '.' !== $dir && '' !== $dir ) {
+					$dirname = trailingslashit( $dir );
+				}
+			}
 			return $path_prefix . $dirname . $object_version;
 		}
 
@@ -177,7 +224,7 @@ trait OffloaderTrait {
 	 * @return int The retention policy value (0 to keep local, 1 to delete).
 	 */
 	private function should_delete_local() {
-		$settings         = get_option( 'nbs3_settings' );
+		$settings         = $this->get_cached_settings();
 		$retention_policy = isset( $settings['retention_policy'] ) ? $settings['retention_policy'] : '0';
 
 		return intval( (string) $retention_policy );
@@ -194,7 +241,7 @@ trait OffloaderTrait {
 	 * @return bool True if cloud files should be deleted, false otherwise.
 	 */
 	private function should_delete_cloud_files( $post ) {
-		$settings      = get_option( 'nbs3_settings' );
+		$settings      = $this->get_cached_settings();
 		$mirror_delete = false;
 
 		if ( isset( $settings['mirror_delete'] ) ) {

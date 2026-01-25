@@ -10,6 +10,8 @@
 
 namespace NBS3\Services;
 
+defined( 'ABSPATH' ) || exit;
+
 use NBS3\S3Provider;
 
 /**
@@ -147,6 +149,73 @@ class BricksCssSyncService {
 			'deleted'      => $deleted,
 			'errors'       => $errors,
 			'total_synced' => count( $this->get_synced_files() ),
+		);
+	}
+
+	/**
+	 * Batch sync - upload a limited number of files per call.
+	 *
+	 * @since 1.0.8
+	 *
+	 * @param int $limit Maximum number of files to process per batch.
+	 * @return array Sync results with uploaded, errors, has_more, and processed counts.
+	 */
+	public function batch_sync( int $limit = 50 ): array {
+		$local_files  = $this->scan_local_files();
+		$synced_files = $this->get_synced_files();
+
+		$uploaded  = 0;
+		$errors    = 0;
+		$processed = 0;
+
+		// Upload new/modified files up to the limit.
+		foreach ( $local_files as $file => $mtime ) {
+			if ( $processed >= $limit ) {
+				break;
+			}
+
+			if ( ! isset( $synced_files[ $file ] ) || $synced_files[ $file ]['mtime'] < $mtime ) {
+				++$processed;
+
+				if ( $this->sync_file( $file ) ) {
+					++$uploaded;
+				} else {
+					++$errors;
+				}
+			}
+		}
+
+		// Calculate remaining files to process.
+		$remaining_uploads = 0;
+		$current_synced    = $this->get_synced_files();
+		foreach ( $local_files as $file => $mtime ) {
+			if ( ! isset( $current_synced[ $file ] ) || $current_synced[ $file ]['mtime'] < $mtime ) {
+				++$remaining_uploads;
+			}
+		}
+
+		// If no more uploads, clean up orphaned S3 files.
+		$deleted = 0;
+		if ( 0 === $remaining_uploads ) {
+			foreach ( $current_synced as $file => $data ) {
+				if ( ! isset( $local_files[ $file ] ) ) {
+					if ( $this->delete_from_s3( $file ) ) {
+						++$deleted;
+					}
+				}
+			}
+		}
+
+		$status = nbs3_get_bricks_sync_status();
+
+		return array(
+			'uploaded'  => $uploaded,
+			'deleted'   => $deleted,
+			'errors'    => $errors,
+			'processed' => $processed,
+			'has_more'  => $remaining_uploads > 0,
+			'remaining' => $remaining_uploads,
+			'status'    => $status,
 		);
 	}
 

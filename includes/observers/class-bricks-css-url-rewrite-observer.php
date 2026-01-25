@@ -10,6 +10,8 @@
 
 namespace NBS3\Observers;
 
+defined( 'ABSPATH' ) || exit;
+
 use NBS3\Interfaces\ObserverInterface;
 
 /**
@@ -184,11 +186,11 @@ class BricksCssUrlRewriteObserver implements ObserverInterface {
 		return preg_replace_callback(
 			$pattern,
 			function ( $matches ) use ( $cdn_domain ) {
-				$prefix        = $matches[1]; // href=" or src=".
-				$attr          = $matches[2]; // href or src.
+				$prefix        = $matches[1]; // Opening attribute with quote.
+				$attr          = $matches[2]; // Attribute name.
 				$full_url      = $matches[3]; // Full URL to asset.
-				$relative_path = $matches[4]; // Path relative to assets/ folder.
-				$suffix        = $matches[5]; // Query string + closing quote.
+				$relative_path = $matches[4]; // Path relative to assets folder.
+				$suffix        = $matches[5]; // Query string and closing quote.
 
 				// Check if this file is synced.
 				if ( ! $this->is_theme_asset_synced( $relative_path ) ) {

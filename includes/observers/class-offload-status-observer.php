@@ -8,6 +8,8 @@
 
 namespace NBS3\Observers;
 
+defined( 'ABSPATH' ) || exit;
+
 use NBS3\S3Provider;
 use NBS3\Interfaces\ObserverInterface;
 use NBS3\Traits\OffloaderTrait;
@@ -101,12 +103,12 @@ class OffloadStatusObserver implements ObserverInterface {
 		}
 
 		if ( $this->has_errors( $post_id ) ) {
-			// Get URL for this settings page: nbs3_media_overview.
-			$media_overview_page = admin_url( 'admin.php?page=nbs3_media_overview' );
-			$status              = sprintf(
-				/* translators: %s: URL to Media Overview page */
-				__( 'Offload failed - Action required. View details in <a href="%s">Media Overview</a>', 'nobloat-s3-offload' ),
-				esc_url( $media_overview_page )
+			// Get URL for this settings page: nbs3_media.
+			$media_page = admin_url( 'admin.php?page=nbs3_media' );
+			$status     = sprintf(
+				/* translators: %s: URL to Media page */
+				__( 'Offload failed - Action required. View details in <a href="%s">Media</a>', 'nobloat-s3-offload' ),
+				esc_url( $media_page )
 			);
 			return array(
 				'status' => $status,

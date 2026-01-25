@@ -11,6 +11,8 @@
 
 namespace NBS3\Observers;
 
+defined( 'ABSPATH' ) || exit;
+
 use NBS3\S3Provider;
 use NBS3\Interfaces\ObserverInterface;
 use NBS3\Traits\OffloaderTrait;
@@ -80,6 +82,7 @@ class AttachmentDeleteObserver implements ObserverInterface {
 	 * @since 1.0.0
 	 *
 	 * @param int $post_id The ID of the post.
+	 * @throws \Exception If cloud file deletion fails.
 	 * @return void
 	 */
 	private function perform_cloud_file_deletion( int $post_id ): void {
@@ -96,6 +99,9 @@ class AttachmentDeleteObserver implements ObserverInterface {
 	/**
 	 * Handle errors during cloud file deletion.
 	 *
+	 * Logs the error and stores it in a transient for admin notice display.
+	 * Does NOT halt the WordPress delete operation to prevent database inconsistency.
+	 *
 	 * @since 1.0.0
 	 *
 	 * @param int    $post_id       The ID of the post.
@@ -103,21 +109,46 @@ class AttachmentDeleteObserver implements ObserverInterface {
 	 * @return void
 	 */
 	private function handle_deletion_error( int $post_id, string $error_message ): void {
-		$log_message = "Cloud file deletion failed for attachment ID: {$post_id}. " .
-			'The file remains in the cloud storage and locally due to an error. ' .
-			'Please try again or contact support if the issue persists.';
+		$log_message = sprintf(
+			'NBS3: Cloud file deletion failed for attachment ID: %d. Error: %s. ' .
+			'The file may remain in cloud storage. Please delete manually if needed.',
+			$post_id,
+			$error_message
+		);
 
 		// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging for deletion failures.
 		error_log( $log_message );
 
-		// Add a notice to the dashboard.
-		add_action(
-			'admin_notices',
-			function () use ( $error_message ) {
-				echo '<div class="error"><p>' . esc_html( $error_message ) . '</p></div>';
-			}
+		// Store error in transient for admin notice display.
+		$errors   = get_transient( 'nbs3_deletion_errors' );
+		$errors   = is_array( $errors ) ? $errors : array();
+		$errors[] = array(
+			'attachment_id' => $post_id,
+			'message'       => $error_message,
+			'time'          => time(),
 		);
+		// Keep only the last 10 errors and expire after 1 hour.
+		$errors = array_slice( $errors, -10 );
+		set_transient( 'nbs3_deletion_errors', $errors, HOUR_IN_SECONDS );
 
-		wp_die( 'Error deleting file from cloud provider: ' . esc_html( $error_message ) );
+		// Add admin notice for current request if in admin context.
+		if ( is_admin() ) {
+			add_action(
+				'admin_notices',
+				function () use ( $post_id, $error_message ) {
+					printf(
+						'<div class="notice notice-error"><p>%s</p></div>',
+						esc_html(
+							sprintf(
+								/* translators: 1: Attachment ID, 2: Error message */
+								__( 'NBS3: Failed to delete cloud file for attachment #%1$d: %2$s', 'nobloat-s3-offload' ),
+								$post_id,
+								$error_message
+							)
+						)
+					);
+				}
+			);
+		}
 	}
 }

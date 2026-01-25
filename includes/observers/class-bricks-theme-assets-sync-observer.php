@@ -8,6 +8,8 @@
 
 namespace NBS3\Observers;
 
+defined( 'ABSPATH' ) || exit;
+
 use NBS3\S3Provider;
 use NBS3\Interfaces\ObserverInterface;
 use NBS3\Services\BricksThemeAssetsSyncService;
@@ -131,7 +133,7 @@ class BricksThemeAssetsSyncObserver implements ObserverInterface {
 
 				// Run the sync.
 				$service = new BricksThemeAssetsSyncService( $s3_provider );
-				$result  = $service->fullSync();
+				$result  = $service->full_sync();
 
 				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional logging for cron sync results.
 				error_log(
