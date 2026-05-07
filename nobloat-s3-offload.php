@@ -9,7 +9,7 @@
  * Plugin Name:       Nobloat S3 Offload
  * Plugin URI:        https://github.com/mailborder/nobloat-s3-offload
  * Description:       Lightweight S3 media offloader for WordPress. Offload media to any S3-compatible storage.
- * Version:           1.0.8
+ * Version:           1.0.9
  * Requires at least: 6.2
  * Requires PHP:      8.1
  * Author:            Jerry Benton
@@ -60,6 +60,16 @@ if ( ! class_exists( 'NBS3' ) ) {
 		public function __construct() {
 			$plugin_data   = get_file_data( __FILE__, array( 'Version' => 'Version' ) );
 			$this->version = $plugin_data['Version'];
+
+			/*
+			 * Register activation/deactivation callbacks at file-load time.
+			 * These cannot be deferred to plugins_loaded — WordPress dispatches
+			 * the activation/deactivation actions during the request that toggles
+			 * the plugin and only sees callbacks registered at the time the
+			 * activation hook is fired.
+			 */
+			register_activation_hook( __FILE__, array( $this, 'plugin_activated' ) );
+			register_deactivation_hook( __FILE__, array( $this, 'plugin_deactivated' ) );
 		}
 
 		/**
@@ -77,16 +87,24 @@ if ( ! class_exists( 'NBS3' ) ) {
 			$this->define( 'NBS3_BASENAME', plugin_basename( __FILE__ ) );
 			$this->define( 'NBS3_VERSION', $this->version );
 
-			// Register hooks.
-			register_activation_hook( __FILE__, array( $this, 'plugin_activated' ) );
-			register_deactivation_hook( __FILE__, array( $this, 'plugin_deactivated' ) );
-
-			// Set up container.
+			// Set up container (only registers callback factories — does not invoke them).
 			$this->setup_container();
 
-			// Include files and setup hooks.
+			// Include utility functions (no translatable strings at load-time).
 			$this->include_files();
-			$this->setup_hooks();
+
+			/*
+			 * Defer hook setup until plugins_loaded so any __()/_e()/_x() calls
+			 * triggered by class constructors or observer register() methods fire
+			 * AFTER WordPress has reached the safe translation-loading window.
+			 *
+			 * Calling these eagerly at plugin file-load time triggers the
+			 * "Translation loading for the nobloat-s3-offload domain was triggered
+			 * too early" notice introduced in WP 6.7. plugins_loaded fires before
+			 * init but after WP has finalised its locale, which is the conventional
+			 * place for plugin bootstrap.
+			 */
+			add_action( 'plugins_loaded', array( $this, 'setup_hooks' ), 5 );
 		}
 
 		/**
@@ -166,7 +184,7 @@ if ( ! class_exists( 'NBS3' ) ) {
 		 *
 		 * @return void
 		 */
-		private function setup_hooks() {
+		public function setup_hooks() {
 			// Check if AWS SDK is loaded.
 			if ( ! class_exists( NBS3Vendor\Aws\S3\S3Client::class ) ) {
 				add_action(

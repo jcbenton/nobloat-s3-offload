@@ -5,7 +5,7 @@ Tags: s3, media, offload, cdn, aws
 Requires at least: 6.2
 Tested up to: 6.9
 Requires PHP: 8.1
-Stable tag: 1.0.8
+Stable tag: 1.0.9
 License: GPLv3 or later
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -118,6 +118,9 @@ If media cannot be uploaded to S3, the local file is preserved and WordPress wil
 
 == Changelog ==
 
+= 1.0.9 =
+* Fixed: WP 6.7+ "Translation loading was triggered too early" notice. Plugin bootstrap deferred from file-load to the `plugins_loaded` action so class instantiation and observer registration happen after WordPress has reached the safe translation-loading window. Activation/deactivation hook registration remains at file-load (required for the activation lifecycle).
+
 = 1.0.8 =
 * Improved collision handling - WordPress now handles all filename decisions
 * File versioning enabled by default to prevent S3 overwrites
@@ -153,6 +156,9 @@ If media cannot be uploaded to S3, the local file is preserved and WordPress wil
 * wp-config.php credential support
 
 == Upgrade Notice ==
+
+= 1.0.9 =
+Resolves the "_load_textdomain_just_in_time was called incorrectly" notice on WordPress 6.7+. No functional changes.
 
 = 1.0.8 =
 Improved collision handling and file versioning. Recommended update for all users.
