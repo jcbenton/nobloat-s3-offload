@@ -1075,8 +1075,10 @@ class GeneralSettings {
 			} elseif ( false !== strpos( $error_msg, 'Could not resolve host' ) || false !== strpos( $error_msg, 'cURL error' ) ) {
 				$safe_message = __( 'Could not connect to S3. Please check your endpoint and region settings.', 'nobloat-s3-offload' );
 			} else {
-				// Show a truncated version of the actual error for debugging (sanitized).
-				$safe_message = __( 'Connection failed: ', 'nobloat-s3-offload' ) . wp_kses( substr( $error_msg, 0, 300 ), array() );
+				// Never echo the raw SDK message — it can carry internal endpoint,
+				// bucket, region, or exception detail. The full message is already
+				// written to error_log() above for diagnosis.
+				$safe_message = __( 'Connection failed. Check the server error log for details.', 'nobloat-s3-offload' );
 			}
 
 			$response_data['message'] = $safe_message;

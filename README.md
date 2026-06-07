@@ -2,7 +2,7 @@
 
 Lightweight S3 media offloader for WordPress. Offload media to any S3-compatible storage with CDN support, Bricks Builder integration, and full WP-CLI commands.
 
-**Version:** 1.0.8
+**Version:** 1.1.1
 
 ## Features
 
@@ -24,7 +24,7 @@ Lightweight S3 media offloader for WordPress. Offload media to any S3-compatible
 ## Requirements
 
 - PHP 8.1 or higher
-- WordPress 6.2 or higher
+- WordPress 6.2 or higher (tested up to WordPress 7.0)
 - An S3-compatible storage bucket
 
 ## Installation
@@ -179,6 +179,20 @@ GPLv3 or later
 ## Changelog
 
 See [readme.txt](readme.txt) for full changelog.
+
+### 1.1.1
+- Security: Endpoint SSRF protection is now enforced at connection time. The validated S3 endpoint host is pinned to the IP(s) verified during validation (via cURL `CURLOPT_RESOLVE`), so the AWS SDK cannot re-resolve DNS to a reserved address (cloud IMDS, loopback, link-local) after validation — closing the DNS-rebinding window.
+- Security: Invalid S3 region strings are now rejected at client-build time instead of being silently coerced to `us-east-1`.
+- Security: The connection-test handler no longer echoes raw S3 SDK error text to the admin UI in its fallback branch; full details go to the error log only.
+- Security: Background-process dispatch now requires a capability (`manage_options`, filterable) in addition to a logged-in check.
+- Bug fix: Removing media from S3 now preserves the attachment's offload metadata when any object delete fails, so a partial failure no longer orphans the remaining S3 objects.
+- Hardening: `nbs3_sanitize_path()` simplified to a single authoritative character whitelist.
+
+### 1.1.0
+- Security & correctness release closing 11 HIGH and 5 MED-severity issues found in a full forensic audit: SSRF validation on the configured S3 endpoint, AWS-secret autoload removal, CSV formula-injection protection, vendored WP_Background_Process `nopriv` removal, WP-CLI revert path containment, Bricks URL-rewrite host anchoring, theme-asset symlink/extension allowlist, missing-source hard-fail, retention-deletion safety, and concurrency-race fixes for object versioning and per-attachment uploads. See [readme.txt](readme.txt) for the full list.
+
+### 1.0.9
+- Fixed WordPress 6.7+ "Translation loading was triggered too early" notice by deferring bootstrap to the `plugins_loaded` action.
 
 ### 1.0.8
 - Improved collision handling - WordPress handles all filenames

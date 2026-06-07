@@ -3,9 +3,9 @@ Contributors: mailborder
 Donate Link: https://donate.stripe.com/3cIfZi81NbxX9CX4uybfO01
 Tags: s3, media, offload, cdn, aws
 Requires at least: 6.2
-Tested up to: 6.9
+Tested up to: 7.0
 Requires PHP: 8.1
-Stable tag: 1.1.0
+Stable tag: 1.1.1
 License: GPLv3 or later
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -118,6 +118,14 @@ If media cannot be uploaded to S3, the local file is preserved and WordPress wil
 
 == Changelog ==
 
+= 1.1.1 =
+* Security: SSRF protection on the configured S3 endpoint is now enforced at connection time, not just at validation time. The endpoint host is resolved during validation and the connection is pinned to those validated IP(s) via cURL `CURLOPT_RESOLVE`, so the AWS SDK cannot re-resolve DNS to a reserved address (cloud-metadata IMDS, loopback, link-local) after validation passes. This closes the DNS-rebinding / TOCTOU window left open in 1.1.0. (Pinning requires the cURL HTTP handler; without it the point-in-time validation still applies.)
+* Security: Invalid S3 region strings are now rejected at client-build time and surfaced as an error instead of being silently coerced to `us-east-1`, which previously masked misconfiguration as opaque connection failures.
+* Security: `check_connection_ajax` no longer returns a truncated copy of the raw S3 SDK exception message to the admin UI in its fallback branch. Full detail is written to `error_log()`; the client receives a generic message. Closes the residual error-text leak from 1.1.0.
+* Security: The vendored WP_Background_Process `maybe_handle()` now requires a capability (`manage_options` by default, filterable via `{identifier}_capability`) in addition to the existing `is_user_logged_in()` re-check, so a logged-in low-privilege user cannot drive the offload queue even if they obtain the dispatch nonce.
+* Bug fix: Removing media from S3 (single-attachment and remove-all AJAX paths) now preserves the attachment's `nbs3_path` and offload metadata when any individual object delete fails. `delete_attachment()` aggregates every per-object result instead of always reporting success, so a partial failure leaves the key prefix intact for a retry rather than orphaning the remaining S3 objects.
+* Hardening: `nbs3_sanitize_path()` reduced to a single authoritative character whitelist (decode-then-whitelist), removing the redundant traversal blacklist passes that masked the real control.
+
 = 1.1.0 =
 * Security: Validate the configured S3 endpoint at save and at client-build time. Rejects URLs whose host resolves to a reserved IP range (cloud-metadata IMDS at 169.254.169.254, loopback, link-local, multicast, etc). RFC1918 private ranges are still accepted so MinIO and similar self-hosted services keep working.
 * Security: Validate region strings to alphanumerics and dashes only — region values are concatenated into URLs and request signatures, so they cannot contain hostname-injection characters.
@@ -180,6 +188,9 @@ If media cannot be uploaded to S3, the local file is preserved and WordPress wil
 * wp-config.php credential support
 
 == Upgrade Notice ==
+
+= 1.1.1 =
+Security follow-up to 1.1.0. Enforces S3 endpoint SSRF protection at connection time (closes the DNS-rebinding window), rejects invalid regions, stops leaking raw SDK error text to the admin UI, adds a capability check to background-process dispatch, and preserves offload metadata on partial S3-delete failure. Recommended for all users on 1.1.0.
 
 = 1.1.0 =
 Security and correctness release. Closes 11 HIGH and 5 MED-severity issues found by full forensic audit, including SSRF protection on the configured S3 endpoint, AWS-secret autoload removal, CSV formula injection, vendored WP_Background_Process nopriv removal, WP-CLI revert path containment, Bricks URL-rewrite host anchoring, theme-asset symlink/extension allowlist, missing-source hard fail, retention-deletion safety, and concurrency-race fixes for object versioning and per-attachment uploads. Recommended for all users.

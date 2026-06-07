@@ -35,18 +35,29 @@ class S3Provider {
 	/**
 	 * Get or create the S3 client.
 	 *
+	 * @throws \Exception If the configured region or endpoint fails safety validation.
 	 * @return S3Client The S3 client instance.
 	 */
 	public function get_client() {
 		// Always create a fresh client to ensure we use current credentials.
 		if ( null === $this->s3_client ) {
 			$endpoint_raw = trim( nbs3_get_credential( 'endpoint' ) );
-			$region       = nbs3_validate_region( trim( nbs3_get_credential( 'region' ) ) );
+			$region_raw   = trim( nbs3_get_credential( 'region' ) );
+			$region       = nbs3_validate_region( $region_raw );
 			$key          = nbs3_get_credential( 'key' );
 			$secret       = nbs3_get_credential( 'secret' );
 			$path_style   = nbs3_get_credential( 'path_style_endpoint' );
 
 			if ( '' === $region ) {
+				// A non-empty value that fails validation is a misconfiguration, not
+				// an "unset" region. Surface it instead of silently signing requests
+				// for us-east-1, which would only manifest as opaque connection
+				// failures. Only an actually-empty region falls back to the default.
+				if ( '' !== $region_raw ) {
+					// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Security/config logging for rejected region.
+					error_log( 'NBS3 Security: Configured S3 region rejected (must be alphanumerics and dashes only).' );
+					throw new \Exception( 'Configured S3 region failed validation.' );
+				}
 				$region = 'us-east-1';
 			}
 
@@ -68,6 +79,28 @@ class S3Provider {
 					throw new \Exception( 'Configured S3 endpoint failed safety validation.' );
 				}
 				$config['endpoint'] = $validated_endpoint;
+
+				/*
+				 * Close the DNS-rebinding window: pin the connection to the IPs we
+				 * just validated so cURL does not re-resolve the host at request
+				 * time. Without this, validation is only point-in-time and the host
+				 * can be re-pointed at IMDS/loopback before the request fires.
+				 * Requires the cURL handler; if ext-curl is unavailable the SDK
+				 * falls back to the stream handler and CURLOPT_RESOLVE is ignored,
+				 * leaving only the (narrower) point-in-time validation above.
+				 */
+				$pins = nbs3_resolve_endpoint_pins( $validated_endpoint );
+				if ( false === $pins ) {
+					// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Security logging for SSRF rejection.
+					error_log( 'NBS3 Security: Configured S3 endpoint rejected at connect time (host unresolvable or resolves to reserved IP range).' );
+					throw new \Exception( 'Configured S3 endpoint failed safety validation.' );
+				}
+				if ( ! empty( $pins ) && extension_loaded( 'curl' ) && defined( 'CURLOPT_RESOLVE' ) ) {
+					$config['http'] = array(
+						'curl' => array( CURLOPT_RESOLVE => $pins ),
+					);
+				}
+
 				if ( ! empty( $path_style ) ) {
 					$config['use_path_style_endpoint'] = true;
 				}
@@ -304,22 +337,26 @@ class S3Provider {
 	public function delete_attachment( $attachment_id ) {
 		try {
 			$key = $this->get_attachment_key( $attachment_id );
-			$this->delete_s3_object( $key );
-
-			$metadata = wp_get_attachment_metadata( $attachment_id );
-
-			if ( ! empty( $metadata['sizes'] ) && is_array( $metadata['sizes'] ) ) {
-				$base_dir = trailingslashit( dirname( $key ) );
-				$this->delete_attachment_sizes( $metadata, $base_dir );
-				$this->delete_image_backup_sizes( $attachment_id, $base_dir );
-			}
-
-			return true;
 		} catch ( \Exception $e ) {
 			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging for S3 failures.
 			error_log( "NBS3: Error deleting file from S3: {$e->getMessage()}" );
 			return false;
 		}
+
+		// Aggregate every per-object result. Returning false on any partial
+		// failure lets callers preserve nbs3_path (the key prefix needed to
+		// retry) instead of clearing it and orphaning the remaining objects.
+		$all_deleted = $this->delete_s3_object( $key );
+
+		$metadata = wp_get_attachment_metadata( $attachment_id );
+		if ( ! empty( $metadata['sizes'] ) && is_array( $metadata['sizes'] ) ) {
+			$base_dir    = trailingslashit( dirname( $key ) );
+			$sizes_ok    = $this->delete_attachment_sizes( $metadata, $base_dir );
+			$backups_ok  = $this->delete_image_backup_sizes( $attachment_id, $base_dir );
+			$all_deleted = $all_deleted && $sizes_ok && $backups_ok;
+		}
+
+		return $all_deleted;
 	}
 
 	/**
@@ -327,30 +364,33 @@ class S3Provider {
 	 *
 	 * @param array  $metadata The attachment metadata.
 	 * @param string $base_dir The base directory path.
-	 * @return void
+	 * @return bool True if every object was deleted, false if any delete failed.
 	 */
-	private function delete_attachment_sizes( array $metadata, string $base_dir ): void {
-		$sizes = $metadata['sizes'];
+	private function delete_attachment_sizes( array $metadata, string $base_dir ): bool {
+		$sizes  = $metadata['sizes'];
+		$all_ok = true;
 
 		foreach ( $sizes as $size => $size_info ) {
 			$size_files = $this->get_files_from_size_data( $size_info );
 
 			foreach ( $size_files as $size_file ) {
 				$thumbnail_key = $base_dir . $size_file;
-				$this->delete_s3_object( $thumbnail_key );
+				$all_ok        = $this->delete_s3_object( $thumbnail_key ) && $all_ok;
 			}
 		}
 
 		if ( ! empty( $metadata['original_image'] ) ) {
 			$original_image = $base_dir . $metadata['original_image'];
-			$this->delete_s3_object( $original_image );
+			$all_ok         = $this->delete_s3_object( $original_image ) && $all_ok;
 		}
 
 		$root_source_files = $this->get_root_source_files( $metadata );
 		foreach ( $root_source_files as $source_file ) {
 			$source_key = $base_dir . $source_file;
-			$this->delete_s3_object( $source_key );
+			$all_ok     = $this->delete_s3_object( $source_key ) && $all_ok;
 		}
+
+		return $all_ok;
 	}
 
 	/**
@@ -403,19 +443,25 @@ class S3Provider {
 	 *
 	 * @param int    $attachment_id The attachment ID.
 	 * @param string $base_dir      The base directory path.
-	 * @return void
+	 * @return bool True if every backup object was deleted, false if any failed.
 	 */
-	private function delete_image_backup_sizes( $attachment_id, $base_dir ) {
+	private function delete_image_backup_sizes( $attachment_id, $base_dir ): bool {
 		$backup_sizes = get_post_meta( $attachment_id, '_wp_attachment_backup_sizes', true );
 
 		if ( ! is_array( $backup_sizes ) ) {
-			return;
+			return true;
 		}
 
+		$all_ok = true;
 		foreach ( $backup_sizes as $size => $size_info ) {
+			if ( empty( $size_info['file'] ) ) {
+				continue;
+			}
 			$backup_key = $base_dir . $size_info['file'];
-			$this->delete_s3_object( $backup_key );
+			$all_ok     = $this->delete_s3_object( $backup_key ) && $all_ok;
 		}
+
+		return $all_ok;
 	}
 
 	/**
@@ -456,19 +502,30 @@ class S3Provider {
 	/**
 	 * Delete an object from S3.
 	 *
+	 * S3 DeleteObject is idempotent — deleting an absent key succeeds — so a
+	 * false return signals a genuine failure (network, permissions, throttling)
+	 * that should block the caller from clearing the attachment's offload meta.
+	 *
 	 * @param string $key The S3 object key.
-	 * @return void
+	 * @return bool True on success, false on a genuine delete failure.
 	 */
-	private function delete_s3_object( string $key ): void {
+	private function delete_s3_object( string $key ): bool {
 		$client = $this->get_client();
 		$bucket = $this->get_bucket();
 
-		$client->deleteObject(
-			array(
-				'Bucket' => $bucket,
-				'Key'    => $key,
-			)
-		);
+		try {
+			$client->deleteObject(
+				array(
+					'Bucket' => $bucket,
+					'Key'    => $key,
+				)
+			);
+			return true;
+		} catch ( \Exception $e ) {
+			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging for S3 failures.
+			error_log( "NBS3: Error deleting S3 object {$key}: {$e->getMessage()}" );
+			return false;
+		}
 	}
 
 	/**

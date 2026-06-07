@@ -136,6 +136,77 @@ if ( ! function_exists( 'nbs3_validate_endpoint' ) ) {
 	}
 }
 
+if ( ! function_exists( 'nbs3_resolve_endpoint_pins' ) ) {
+	/**
+	 * Resolve an endpoint host to validated IPs and build cURL pin entries.
+	 *
+	 * The nbs3_validate_endpoint() helper only checks DNS at validation time and returns
+	 * the host *name* — the AWS SDK / cURL then re-resolves DNS when the request
+	 * actually fires. A host that passes validation can be re-pointed at
+	 * 169.254.169.254 (cloud IMDS), loopback, or an internal service in that
+	 * window (DNS rebinding / TOCTOU). This function resolves the host now,
+	 * rejects unless *every* answer is a safe IP, and returns CURLOPT_RESOLVE
+	 * entries ("host:port:ip") so cURL connects to the exact addresses we
+	 * validated and performs no further DNS lookup. TLS SNI and certificate
+	 * verification still use the original hostname.
+	 *
+	 * @param string $url The already-normalized, already-validated endpoint URL.
+	 * @return array|false Pin entries (possibly empty for a literal-IP endpoint),
+	 *                     or false if the host is unresolvable or resolves to any
+	 *                     unsafe IP.
+	 */
+	function nbs3_resolve_endpoint_pins( string $url ) {
+		$parsed = wp_parse_url( $url );
+		if ( empty( $parsed['host'] ) ) {
+			return false;
+		}
+
+		$host   = $parsed['host'];
+		$scheme = strtolower( $parsed['scheme'] ?? 'https' );
+		$port   = isset( $parsed['port'] ) ? (int) $parsed['port'] : ( 'http' === $scheme ? 80 : 443 );
+
+		if ( '[' === substr( $host, 0, 1 ) && ']' === substr( $host, -1 ) ) {
+			$host = substr( $host, 1, -1 );
+		}
+
+		// Literal IPs are not resolved by cURL; nbs3_validate_endpoint already
+		// vetted them, so no pin is needed and none can be rebound.
+		if ( filter_var( $host, FILTER_VALIDATE_IP ) ) {
+			return array();
+		}
+
+		$ips       = array();
+		$a_records = @gethostbynamel( $host ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		if ( is_array( $a_records ) ) {
+			$ips = array_merge( $ips, $a_records );
+		}
+		if ( function_exists( 'dns_get_record' ) ) {
+			$aaaa = @dns_get_record( $host, DNS_AAAA ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+			if ( is_array( $aaaa ) ) {
+				foreach ( $aaaa as $rec ) {
+					if ( ! empty( $rec['ipv6'] ) ) {
+						$ips[] = $rec['ipv6'];
+					}
+				}
+			}
+		}
+
+		if ( empty( $ips ) ) {
+			return false;
+		}
+
+		$pins = array();
+		foreach ( $ips as $ip ) {
+			if ( ! nbs3_is_safe_endpoint_ip( $ip ) ) {
+				return false;
+			}
+			$pins[] = $host . ':' . $port . ':' . $ip;
+		}
+
+		return $pins;
+	}
+}
+
 if ( ! function_exists( 'nbs3_validate_region' ) ) {
 	/**
 	 * Validate an S3 region string.
@@ -315,38 +386,27 @@ if ( ! function_exists( 'nbs3_sanitize_path' ) ) {
 			return '';
 		}
 
-		// Maximum path length (S3 allows 1024 chars for keys).
-		if ( strlen( $path ) > 255 ) {
-			$path = substr( $path, 0, 255 );
-		}
-
-		// Decode any URL encoding to prevent bypass.
+		// Decode percent-encoding first so an encoded payload (%2e%2e, %2f) is
+		// subject to the whitelist below rather than slipping through encoded.
 		$path = urldecode( $path );
 
-		// Remove any attempts at path traversal (multiple passes to catch nested attempts).
-		$iterations = 0;
-		while ( ( false !== strpos( $path, '..' ) || false !== strpos( $path, './' ) ) && $iterations < 10 ) {
-			$path = str_replace( array( '../', '..\\', '../', '..', './' ), '', $path );
-			++$iterations;
-		}
-
-		// Whitelist allowed characters: alphanumeric, dash, underscore, forward slash.
+		/*
+		 * The whitelist is the authoritative control. Stripping everything but
+		 * [A-Za-z0-9/_-] removes the '.' character outright, so '..' traversal
+		 * cannot survive and no separate blacklist pass is needed. Dots, null
+		 * bytes, backslashes, and any hostname/scheme characters are all gone
+		 * after this step.
+		 */
 		$path = preg_replace( '/[^a-zA-Z0-9\/_-]/', '', $path );
 
-		// Collapse multiple slashes.
+		// Collapse multiple slashes and trim path separators.
 		$path = preg_replace( '#/+#', '/', $path );
-
-		// Remove leading and trailing slashes.
 		$path = trim( $path, '/' );
 
-		// Normalize path separators.
-		$path = wp_normalize_path( $path );
-
-		// Final validation - ensure no dangerous patterns remain.
-		if ( preg_match( '/\.\./', $path ) ) {
-			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Security logging for path traversal attempts.
-			error_log( "NBS3 Security: Dangerous path pattern detected and rejected: {$path}" );
-			return '';
+		// Enforce maximum prefix length after sanitizing (S3 allows 1024 chars
+		// for the full key; cap the prefix well under that).
+		if ( strlen( $path ) > 255 ) {
+			$path = rtrim( substr( $path, 0, 255 ), '/' );
 		}
 
 		return $path;

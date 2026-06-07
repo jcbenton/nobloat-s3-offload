@@ -185,6 +185,19 @@ abstract class WP_Async_Request {
 			wp_die( -1, 403 );
 		}
 
+		/*
+		 * Defence in depth: the dispatch nonce is only ever minted in a
+		 * privileged (manage_options) context, but a logged-in low-privilege
+		 * user who somehow obtained it has no business driving the background
+		 * queue. Require a capability as well. Filterable so other consumers of
+		 * this vendored library can relax or change it.
+		 */
+		// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.DynamicHooknameFound -- Third-party library, identifier is prefixed.
+		$required_capability = apply_filters( $this->identifier . '_capability', 'manage_options' );
+		if ( ! empty( $required_capability ) && ! current_user_can( $required_capability ) ) {
+			wp_die( -1, 403 );
+		}
+
 		$this->handle();
 
 		return $this->maybe_wp_die();

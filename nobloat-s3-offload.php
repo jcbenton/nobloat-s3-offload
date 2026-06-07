@@ -9,7 +9,7 @@
  * Plugin Name:       Nobloat S3 Offload
  * Plugin URI:        https://github.com/mailborder/nobloat-s3-offload
  * Description:       Lightweight S3 media offloader for WordPress. Offload media to any S3-compatible storage.
- * Version:           1.1.0
+ * Version:           1.1.1
  * Requires at least: 6.2
  * Requires PHP:      8.1
  * Author:            Jerry Benton
