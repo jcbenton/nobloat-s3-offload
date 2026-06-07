@@ -71,30 +71,28 @@ class PostContentImageTagObserver implements ObserverInterface {
 			return $filtered_image;
 		}
 
-		$src_attr = $this->get_image_src( $filtered_image );
-		if ( empty( $src_attr ) ) {
+		$offloaded_image_url = wp_get_attachment_url( $attachment_id );
+		if ( empty( $offloaded_image_url ) ) {
 			return $filtered_image;
 		}
 
-		$offloaded_image_url = wp_get_attachment_url( $attachment_id );
-		$filtered_image      = str_replace( $src_attr, $offloaded_image_url, $filtered_image );
-
-		return $filtered_image;
-	}
-
-	/**
-	 * Extract the src attribute from an image tag.
-	 *
-	 * @param string $image_tag The image tag HTML.
-	 * @return string The src attribute value, or empty string if not found.
-	 */
-	private function get_image_src( $image_tag ) {
-		$src = '';
-
-		if ( preg_match( '/src=[\'"]?([^\'" >]+)[\'"]?/i', $image_tag, $matches ) ) {
-			$src = $matches[1];
+		/*
+		 * Use WP_HTML_Tag_Processor (WP 6.2+) for safe attribute mutation
+		 * rather than regex extraction + str_replace. The previous
+		 * implementation could mangle markup when the attachment URL
+		 * substring also appeared inside alt text or data-* attributes,
+		 * because str_replace replaced every occurrence in the tag.
+		 */
+		if ( class_exists( '\WP_HTML_Tag_Processor' ) ) {
+			$tags = new \WP_HTML_Tag_Processor( $filtered_image );
+			if ( $tags->next_tag( 'img' ) ) {
+				$tags->set_attribute( 'src', $offloaded_image_url );
+				return $tags->get_updated_html();
+			}
+			return $filtered_image;
 		}
 
-		return $src;
+		// Fallback for environments without the tag processor (should not happen on WP >= 6.2).
+		return $filtered_image;
 	}
 }

@@ -455,12 +455,8 @@ class MediaOverview {
 			wp_send_json_error( array( 'message' => __( 'Invalid security token.', 'nobloat-s3-offload' ) ) );
 		}
 
-		if ( ! current_user_can( 'upload_files' ) ) {
+		if ( ! $attachment_id || ! current_user_can( 'edit_post', $attachment_id ) ) {
 			wp_send_json_error( array( 'message' => __( 'Permission denied.', 'nobloat-s3-offload' ) ) );
-		}
-
-		if ( ! $attachment_id ) {
-			wp_send_json_error( array( 'message' => __( 'Invalid attachment ID.', 'nobloat-s3-offload' ) ) );
 		}
 
 		$bucket = nbs3_get_credential( 'bucket' );
@@ -476,12 +472,12 @@ class MediaOverview {
 			if ( $result ) {
 				wp_send_json_success( array( 'message' => __( 'File offloaded successfully.', 'nobloat-s3-offload' ) ) );
 			} else {
-				$errors    = get_post_meta( $attachment_id, 'nbs3_error_log', true );
-				$error_msg = is_array( $errors ) ? implode( ' ', $errors ) : __( 'Offload failed.', 'nobloat-s3-offload' );
-				wp_send_json_error( array( 'message' => $error_msg ) );
+				wp_send_json_error( array( 'message' => __( 'Offload failed. Check the error log for details.', 'nobloat-s3-offload' ) ) );
 			}
 		} catch ( \Exception $e ) {
-			wp_send_json_error( array( 'message' => $e->getMessage() ) );
+			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging; raw message must not be returned to client.
+			error_log( 'NBS3 Single Offload Error: ' . $e->getMessage() );
+			wp_send_json_error( array( 'message' => __( 'Offload failed. Check the error log for details.', 'nobloat-s3-offload' ) ) );
 		}
 	}
 
@@ -498,12 +494,8 @@ class MediaOverview {
 			wp_send_json_error( array( 'message' => __( 'Invalid security token.', 'nobloat-s3-offload' ) ) );
 		}
 
-		if ( ! current_user_can( 'upload_files' ) ) {
+		if ( ! $attachment_id || ! current_user_can( 'edit_post', $attachment_id ) ) {
 			wp_send_json_error( array( 'message' => __( 'Permission denied.', 'nobloat-s3-offload' ) ) );
-		}
-
-		if ( ! $attachment_id ) {
-			wp_send_json_error( array( 'message' => __( 'Invalid attachment ID.', 'nobloat-s3-offload' ) ) );
 		}
 
 		$bucket = nbs3_get_credential( 'bucket' );
@@ -531,7 +523,9 @@ class MediaOverview {
 				wp_send_json_error( array( 'message' => __( 'Failed to remove file from S3.', 'nobloat-s3-offload' ) ) );
 			}
 		} catch ( \Exception $e ) {
-			wp_send_json_error( array( 'message' => $e->getMessage() ) );
+			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Raw message must not be returned to client.
+			error_log( 'NBS3 Single Remove Error: ' . $e->getMessage() );
+			wp_send_json_error( array( 'message' => __( 'Removal failed. Check the error log for details.', 'nobloat-s3-offload' ) ) );
 		}
 	}
 
@@ -548,12 +542,8 @@ class MediaOverview {
 			wp_send_json_error( array( 'message' => __( 'Invalid security token.', 'nobloat-s3-offload' ) ) );
 		}
 
-		if ( ! current_user_can( 'upload_files' ) ) {
+		if ( ! $attachment_id || ! current_user_can( 'edit_post', $attachment_id ) ) {
 			wp_send_json_error( array( 'message' => __( 'Permission denied.', 'nobloat-s3-offload' ) ) );
-		}
-
-		if ( ! $attachment_id ) {
-			wp_send_json_error( array( 'message' => __( 'Invalid attachment ID.', 'nobloat-s3-offload' ) ) );
 		}
 
 		// Clear all offload-related metadata.
@@ -866,8 +856,9 @@ class MediaOverview {
 					}
 				} catch ( \Exception $e ) {
 					++$errors;
-					$error_messages[] = sprintf( 'Attachment %d: %s', $attachment_id, $e->getMessage() );
-					// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging.
+					/* translators: %d: attachment ID */
+					$error_messages[] = sprintf( __( 'Attachment %d failed (see error log for details).', 'nobloat-s3-offload' ), $attachment_id );
+					// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging; raw $e->getMessage() must not reach the client.
 					error_log( 'NBS3 Media Sync Error for attachment ' . $attachment_id . ': ' . $e->getMessage() );
 				}
 			}
@@ -910,11 +901,11 @@ class MediaOverview {
 				)
 			);
 		} catch ( \Exception $e ) {
-			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging.
+			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Raw message must not be returned to client.
 			error_log( 'NBS3 Media Sync Error: ' . $e->getMessage() );
 			wp_send_json_error(
 				array(
-					'message' => __( 'Sync failed: ', 'nobloat-s3-offload' ) . $e->getMessage(),
+					'message' => __( 'Sync failed. Check the error log for details.', 'nobloat-s3-offload' ),
 				)
 			);
 		}
@@ -1016,11 +1007,11 @@ class MediaOverview {
 				)
 			);
 		} catch ( \Exception $e ) {
-			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional error logging.
+			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Raw message must not be returned to client.
 			error_log( 'NBS3 Media Remove Error: ' . $e->getMessage() );
 			wp_send_json_error(
 				array(
-					'message' => __( 'Removal failed: ', 'nobloat-s3-offload' ) . $e->getMessage(),
+					'message' => __( 'Removal failed. Check the error log for details.', 'nobloat-s3-offload' ),
 				)
 			);
 		}
@@ -1155,15 +1146,14 @@ class MediaOverview {
 	 * @return void
 	 */
 	public function handle_download_errors_csv() {
+		// Authorization gates outside the try/catch — check_admin_referer dies on failure and never returns.
+		check_admin_referer( 'nbs3_download_errors_csv', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You do not have sufficient permissions to access this page.', 'nobloat-s3-offload' ), '', array( 'response' => 403 ) );
+		}
+
 		try {
-			if ( ! current_user_can( 'manage_options' ) ) {
-				throw new Exception( 'You do not have sufficient permissions to access this page.' );
-			}
-
-			if ( ! check_admin_referer( 'nbs3_download_errors_csv', 'nonce' ) ) {
-				throw new Exception( 'Invalid nonce. Please try again.' );
-			}
-
 			$attachments_with_errors = $this->get_attachments_with_errors();
 
 			if ( empty( $attachments_with_errors ) ) {
@@ -1193,8 +1183,8 @@ class MediaOverview {
 					$output,
 					array(
 						$attachment_id,
-						$attachment->post_title,
-						$errors_string,
+						$this->escape_csv_cell( $attachment->post_title ),
+						$this->escape_csv_cell( $errors_string ),
 					)
 				);
 			}
@@ -1203,9 +1193,32 @@ class MediaOverview {
 			fclose( $output );
 			exit;
 		} catch ( Exception $e ) {
+			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Internal exception logging.
+			error_log( 'NBS3 CSV Export Error: ' . $e->getMessage() );
 			status_header( 500 );
-			wp_die( 'Error generating CSV: ' . esc_html( $e->getMessage() ), 'Error', array( 'response' => 500 ) );
+			wp_die( esc_html__( 'Error generating CSV.', 'nobloat-s3-offload' ), '', array( 'response' => 500 ) );
 		}
+	}
+
+	/**
+	 * Escape a CSV cell against spreadsheet formula injection.
+	 *
+	 * Cells starting with =, +, -, @, tab, or carriage return are
+	 * interpreted as formulas by Excel/LibreOffice/Numbers. An attacker
+	 * with `edit_post` on an attachment (e.g., an Author for their own
+	 * media) could set a post title beginning with `=cmd|...!A1` and
+	 * cause command execution when an admin opens the exported CSV.
+	 * Prefixing a single quote neutralises the leading character.
+	 *
+	 * @param mixed $value The cell value.
+	 * @return string The escaped cell value.
+	 */
+	private function escape_csv_cell( $value ): string {
+		$value = (string) $value;
+		if ( strlen( $value ) > 0 && in_array( $value[0], array( '=', '+', '-', '@', "\t", "\r" ), true ) ) {
+			$value = "'" . $value;
+		}
+		return $value;
 	}
 
 	/**

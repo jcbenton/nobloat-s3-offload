@@ -82,17 +82,44 @@ trait OffloaderTrait {
 	}
 
 	/**
-	 * Get or generate the object version for an attachment.
+	 * Get the object version for an attachment, read-only.
 	 *
-	 * If an existing version is stored in post meta, returns that.
-	 * Otherwise generates a new timestamp-based version if object versioning is enabled.
+	 * Returns the previously persisted version. Never writes new state, so
+	 * it is safe to call from read-path filters such as
+	 * wp_calculate_image_srcset_meta, image_downsize, and
+	 * wp_get_attachment_url. Returns empty string when no version is
+	 * recorded — callers in read paths must treat that as "no version
+	 * suffix" rather than fabricating one.
 	 *
 	 * @since 1.0.0
 	 *
 	 * @param int $attachment_id The attachment post ID.
-	 * @return string The object version with trailing slash, or empty string if versioning is disabled.
+	 * @return string The object version with trailing slash, or empty string.
 	 */
 	private function get_object_version( $attachment_id ) {
+		$existing_version = get_post_meta( $attachment_id, 'nbs3_object_version', true );
+
+		if ( $existing_version ) {
+			return trailingslashit( $existing_version );
+		}
+
+		return '';
+	}
+
+	/**
+	 * Ensure an object version exists, writing one if needed.
+	 *
+	 * Only call this from upload-time write paths (the offload pipeline).
+	 * Calling it from a read-path filter triggers a race where two
+	 * concurrent visitors persist different timestamps, after which one
+	 * client's URL points at an S3 key that was never PUT.
+	 *
+	 * @since 1.7.0
+	 *
+	 * @param int $attachment_id The attachment post ID.
+	 * @return string The object version with trailing slash, or empty string if versioning is disabled.
+	 */
+	private function ensure_object_version( $attachment_id ): string {
 		$existing_version = get_post_meta( $attachment_id, 'nbs3_object_version', true );
 
 		if ( $existing_version ) {
@@ -123,17 +150,26 @@ trait OffloaderTrait {
 	 * Builds the path using the configured prefix, year/month directory structure,
 	 * and object version where applicable.
 	 *
+	 * Pass $for_upload = true ONLY from upload-time write paths so the
+	 * version is persisted alongside the actual S3 PUT. From read-path
+	 * filters (URL/srcset/downsize/srcset-meta) leave it false — those code
+	 * paths must not mutate post meta or two concurrent renders will race
+	 * and produce divergent URLs.
+	 *
 	 * @since 1.0.0
 	 *
-	 * @param int $attachment_id The attachment post ID.
+	 * @param int  $attachment_id The attachment post ID.
+	 * @param bool $for_upload    Whether this is an upload-time call.
 	 * @return string The subdirectory path for the attachment.
 	 */
-	public function get_attachment_subdir( $attachment_id ) {
+	public function get_attachment_subdir( $attachment_id, bool $for_upload = false ) {
 		if ( $this->is_offloaded( $attachment_id ) ) {
 			return get_post_meta( $attachment_id, 'nbs3_path', true );
 		}
 
-		$object_version = $this->get_object_version( $attachment_id );
+		$object_version = $for_upload
+			? $this->ensure_object_version( $attachment_id )
+			: $this->get_object_version( $attachment_id );
 		$path_prefix    = $this->get_path_prefix();
 
 		$metadata  = wp_get_attachment_metadata( $attachment_id );

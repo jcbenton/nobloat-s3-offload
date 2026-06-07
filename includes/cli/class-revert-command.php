@@ -297,7 +297,13 @@ class RevertCommand {
 		}
 
 		$upload_dir = wp_upload_dir();
-		$base_dir   = $upload_dir['basedir'];
+		$base_dir   = wp_normalize_path( $upload_dir['basedir'] );
+		$base_real  = realpath( $base_dir );
+		if ( false === $base_real ) {
+			\WP_CLI::warning( "Uploads base directory does not exist: {$base_dir}" );
+			return false;
+		}
+		$base_real = wp_normalize_path( $base_real );
 
 		// Build the S3 key.
 		$file_name = basename( $attached_file );
@@ -307,14 +313,29 @@ class RevertCommand {
 			$s3_key = $file_name;
 		}
 
-		// Local file path.
-		$local_path = trailingslashit( $base_dir ) . $attached_file;
+		/*
+		 * Compute the local target path and verify it stays inside the
+		 * uploads directory. The downstream local path is derived from
+		 * `_wp_attached_file` post meta which an admin (or a compromised
+		 * user with edit_post on an attachment) can mutate. Without
+		 * containment, a value like `../../wp-config.php` would let revert
+		 * write S3 contents over arbitrary server files.
+		 */
+		$local_path        = $this->safe_local_path( $base_real, $attached_file );
+		if ( null === $local_path ) {
+			\WP_CLI::warning( "Refusing to write outside uploads directory for attachment ID {$attachment_id} ({$attached_file})." );
+			return false;
+		}
 
 		// Ensure directory exists.
 		$local_dir = dirname( $local_path );
 		if ( ! file_exists( $local_dir ) ) {
 			wp_mkdir_p( $local_dir );
 		}
+
+		// Track partial-failure state so we never delete from S3 if any
+		// thumbnail download failed.
+		$any_failed = false;
 
 		// Download main file.
 		if ( ! $this->s3_provider->download_file( $s3_key, $local_path ) ) {
@@ -337,42 +358,109 @@ class RevertCommand {
 
 				$size_file       = $size_info['file'];
 				$size_s3_key     = $s3_base_dir . $size_file;
-				$size_local_path = trailingslashit( $local_base_dir ) . $size_file;
+				$size_local_path = $this->safe_local_path( $base_real, dirname( $attached_file ) . '/' . $size_file );
+
+				if ( null === $size_local_path ) {
+					\WP_CLI::warning( "  Refusing to write thumbnail outside uploads directory: {$size_file}" );
+					$any_failed = true;
+					continue;
+				}
 
 				if ( $this->s3_provider->download_file( $size_s3_key, $size_local_path ) ) {
 					\WP_CLI::log( "  Downloaded: {$size_file}" );
 				} else {
 					\WP_CLI::warning( "  Failed to download: {$size_file}" );
+					$any_failed = true;
 				}
 			}
 
 			// Download original image if exists.
 			if ( ! empty( $metadata['original_image'] ) ) {
 				$orig_s3_key     = $s3_base_dir . $metadata['original_image'];
-				$orig_local_path = trailingslashit( $local_base_dir ) . $metadata['original_image'];
+				$orig_local_path = $this->safe_local_path( $base_real, dirname( $attached_file ) . '/' . $metadata['original_image'] );
 
-				if ( $this->s3_provider->download_file( $orig_s3_key, $orig_local_path ) ) {
+				if ( null === $orig_local_path ) {
+					\WP_CLI::warning( "  Refusing to write original image outside uploads directory: {$metadata['original_image']}" );
+					$any_failed = true;
+				} elseif ( $this->s3_provider->download_file( $orig_s3_key, $orig_local_path ) ) {
 					\WP_CLI::log( "  Downloaded: {$metadata['original_image']}" );
+				} else {
+					\WP_CLI::warning( "  Failed to download: {$metadata['original_image']}" );
+					$any_failed = true;
 				}
 			}
 		}
 
-		// Delete from S3 if not keeping.
-		if ( ! $keep_s3 ) {
+		/*
+		 * Only delete from S3 when EVERY local download succeeded. Earlier
+		 * behaviour deleted unconditionally, so a single failed thumbnail
+		 * could leave the site with neither the local nor the cloud copy.
+		 * --keep-s3 also bypasses delete (existing behaviour preserved).
+		 */
+		if ( ! $keep_s3 && ! $any_failed ) {
 			if ( $this->s3_provider->delete_attachment( $attachment_id ) ) {
 				\WP_CLI::log( '  Deleted from S3.' );
 			} else {
 				\WP_CLI::warning( '  Failed to delete from S3 (files may remain in cloud).' );
 			}
+		} elseif ( $any_failed ) {
+			\WP_CLI::warning( '  One or more files failed to download — keeping S3 copies as a safety measure.' );
 		}
 
-		// Clear offload metadata.
-		delete_post_meta( $attachment_id, 'nbs3_offloaded' );
-		delete_post_meta( $attachment_id, 'nbs3_path' );
-		delete_post_meta( $attachment_id, 'nbs3_provider' );
-		delete_post_meta( $attachment_id, 'nbs3_error_log' );
+		// Clear offload metadata only when fully reverted.
+		if ( ! $any_failed ) {
+			delete_post_meta( $attachment_id, 'nbs3_offloaded' );
+			delete_post_meta( $attachment_id, 'nbs3_path' );
+			delete_post_meta( $attachment_id, 'nbs3_provider' );
+			delete_post_meta( $attachment_id, 'nbs3_error_log' );
+		}
 
-		return true;
+		return ! $any_failed;
+	}
+
+	/**
+	 * Compute a local filesystem path under the uploads dir and verify containment.
+	 *
+	 * Resolves the prospective local path against the canonicalised uploads
+	 * basedir. If the resolved path escapes the basedir (via `..`, an
+	 * absolute path, or symlink), returns null so the caller refuses the
+	 * write. The path itself does not need to exist yet — we resolve the
+	 * deepest existing ancestor and verify the remaining segments don't
+	 * contain traversal.
+	 *
+	 * @param string $base_real        Canonical uploads basedir (absolute, normalised).
+	 * @param string $relative_in_dir  Path relative to uploads basedir.
+	 * @return string|null Absolute path under basedir, or null if unsafe.
+	 */
+	private function safe_local_path( string $base_real, string $relative_in_dir ): ?string {
+		$candidate = wp_normalize_path( trailingslashit( $base_real ) . ltrim( $relative_in_dir, '/\\' ) );
+
+		// Walk up to the deepest existing ancestor and realpath that.
+		$probe = $candidate;
+		while ( '' !== $probe && ! file_exists( $probe ) ) {
+			$parent = dirname( $probe );
+			if ( $parent === $probe ) {
+				return null;
+			}
+			$probe = $parent;
+		}
+		$probe_real = realpath( $probe );
+		if ( false === $probe_real ) {
+			return null;
+		}
+		$probe_real = wp_normalize_path( $probe_real );
+
+		if ( 0 !== strpos( $probe_real, $base_real ) ) {
+			return null;
+		}
+
+		// Reject any traversal segment in the unresolved tail.
+		$tail = substr( $candidate, strlen( $probe_real ) );
+		if ( false !== strpos( $tail, '..' ) ) {
+			return null;
+		}
+
+		return $candidate;
 	}
 
 	/**

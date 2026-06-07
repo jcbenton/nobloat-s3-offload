@@ -40,11 +40,15 @@ class S3Provider {
 	public function get_client() {
 		// Always create a fresh client to ensure we use current credentials.
 		if ( null === $this->s3_client ) {
-			$endpoint   = trim( nbs3_get_credential( 'endpoint' ) );
-			$region     = trim( nbs3_get_credential( 'region' ) ) ? trim( nbs3_get_credential( 'region' ) ) : 'us-east-1';
-			$key        = nbs3_get_credential( 'key' );
-			$secret     = nbs3_get_credential( 'secret' );
-			$path_style = nbs3_get_credential( 'path_style_endpoint' );
+			$endpoint_raw = trim( nbs3_get_credential( 'endpoint' ) );
+			$region       = nbs3_validate_region( trim( nbs3_get_credential( 'region' ) ) );
+			$key          = nbs3_get_credential( 'key' );
+			$secret       = nbs3_get_credential( 'secret' );
+			$path_style   = nbs3_get_credential( 'path_style_endpoint' );
+
+			if ( '' === $region ) {
+				$region = 'us-east-1';
+			}
 
 			$config = array(
 				'version'                     => 'latest',
@@ -56,15 +60,18 @@ class S3Provider {
 				),
 			);
 
-			// Add endpoint for S3-compatible services (R2, Spaces, MinIO, etc.).
-			if ( ! empty( $endpoint ) ) {
-				$config['endpoint'] = nbs3_normalize_url( $endpoint );
-				// Use path-style endpoints if configured (for MinIO, etc.).
+			if ( ! empty( $endpoint_raw ) ) {
+				$validated_endpoint = nbs3_validate_endpoint( $endpoint_raw );
+				if ( '' === $validated_endpoint ) {
+					// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Security logging for SSRF rejection.
+					error_log( 'NBS3 Security: Configured S3 endpoint rejected (resolves to reserved IP range, fails URL validation, or DNS unresolvable).' );
+					throw new \Exception( 'Configured S3 endpoint failed safety validation.' );
+				}
+				$config['endpoint'] = $validated_endpoint;
 				if ( ! empty( $path_style ) ) {
 					$config['use_path_style_endpoint'] = true;
 				}
 			} else {
-				// For AWS S3, use regional endpoint.
 				$config['endpoint'] = "https://s3.{$region}.amazonaws.com";
 			}
 
@@ -93,43 +100,58 @@ class S3Provider {
 	}
 
 	/**
-	 * Get the domain URL for serving files.
+	 * Get the public domain URL for serving offloaded files.
 	 *
-	 * @return string The domain URL.
+	 * Returns the operator-configured CDN domain. When no CDN domain is
+	 * configured this returns an empty string — front-end URL-rewrite
+	 * observers must treat that as "do not rewrite", preserving the local
+	 * URL. Older releases fell back to the raw bucket URL, which leaked
+	 * the bucket name into every page on the site.
+	 *
+	 * @return string The CDN domain URL, or empty string when no CDN is set.
 	 */
 	public function get_domain() {
 		$domain = nbs3_get_credential( 'domain' );
 		if ( ! empty( $domain ) ) {
 			return nbs3_normalize_url( $domain );
 		}
+		return '';
+	}
 
-		// Fall back to S3 bucket URL if no CDN domain is set.
-		$bucket   = $this->get_bucket();
-		$region   = nbs3_get_credential( 'region' );
-		$endpoint = nbs3_get_credential( 'endpoint' );
-
-		if ( ! empty( $bucket ) ) {
-			// If custom endpoint is set (non-AWS S3-compatible), use it.
-			if ( ! empty( $endpoint ) ) {
-				$endpoint = nbs3_normalize_url( $endpoint );
-				// Check if it's path-style or virtual-hosted style.
-				if ( nbs3_get_credential( 'path_style_endpoint' ) ) {
-					return rtrim( $endpoint, '/' ) . '/' . $bucket;
-				}
-				// Virtual-hosted style: bucket.endpoint.
-				$parsed = wp_parse_url( $endpoint );
-				$scheme = $parsed['scheme'] ?? 'https';
-				$host   = $parsed['host'] ?? '';
-				return $scheme . '://' . $bucket . '.' . $host;
-			}
-
-			// Default AWS S3 URL.
-			if ( ! empty( $region ) ) {
-				return 'https://' . $bucket . '.s3.' . $region . '.amazonaws.com';
-			}
+	/**
+	 * Get the raw S3 bucket URL.
+	 *
+	 * Reserved for diagnostic and admin contexts — never use this in a
+	 * front-end URL-rewrite observer because it leaks the bucket name.
+	 *
+	 * @return string The bucket URL or empty string if bucket/region unset.
+	 */
+	public function get_bucket_url(): string {
+		$bucket = $this->get_bucket();
+		if ( empty( $bucket ) ) {
+			return '';
 		}
 
-		return '';
+		$endpoint = nbs3_get_credential( 'endpoint' );
+		if ( ! empty( $endpoint ) ) {
+			$endpoint = nbs3_validate_endpoint( $endpoint );
+			if ( '' === $endpoint ) {
+				return '';
+			}
+			if ( nbs3_get_credential( 'path_style_endpoint' ) ) {
+				return rtrim( $endpoint, '/' ) . '/' . $bucket;
+			}
+			$parsed = wp_parse_url( $endpoint );
+			$scheme = $parsed['scheme'] ?? 'https';
+			$host   = $parsed['host'] ?? '';
+			return $scheme . '://' . $bucket . '.' . $host;
+		}
+
+		$region = nbs3_validate_region( nbs3_get_credential( 'region' ) );
+		if ( '' === $region ) {
+			return '';
+		}
+		return 'https://' . $bucket . '.s3.' . $region . '.amazonaws.com';
 	}
 
 	/**

@@ -198,10 +198,22 @@ class BulkOffloadHandler {
 			return;
 		}
 
+		/*
+		 * Preserve the operator's cancel intent. Stalled-process recovery
+		 * runs on a 15-minute cron and used to wipe nbs3_bulk_offload_cancelled
+		 * before re-dispatching, which silently undid an in-flight cancel
+		 * that landed in the same window — the user saw "cancelled" in the
+		 * UI but processing resumed.
+		 */
+		$is_cancelled = (bool) get_option( 'nbs3_bulk_offload_cancelled' );
+
 		delete_site_transient( $this->process_all->get_identifier() . '_process_lock' );
 		delete_site_transient( $this->process_all->get_identifier() . '_batch_lock' );
-		delete_option( 'nbs3_bulk_offload_cancelled' );
 		wp_clear_scheduled_hook( $this->process_all->get_identifier() . '_cron' );
+
+		if ( $is_cancelled ) {
+			return;
+		}
 
 		if ( $this->process_all->is_queued() && ! $this->process_all->is_processing() ) {
 			$this->process_all->dispatch();
@@ -568,6 +580,11 @@ class BulkOffloadHandler {
 			}
 
 			$has_pending_items = true;
+		}
+
+		// Honor operator cancellation here too — same reason as force_unlock_process().
+		if ( get_option( 'nbs3_bulk_offload_cancelled' ) ) {
+			return;
 		}
 
 		if ( $has_pending_items && ! $this->process_all->is_processing() ) {

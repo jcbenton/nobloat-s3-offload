@@ -302,14 +302,14 @@ class BricksSyncCommand {
 
 		if ( $remove_css && $css_count > 0 ) {
 			\WP_CLI::log( 'Removing Bricks CSS files from S3...' );
-			$result         = $this->get_css_sync_service()->removeAllFromS3();
+			$result         = $this->get_css_sync_service()->remove_all_from_s3();
 			$total_deleted += $result['deleted'];
 			$total_errors  += $result['errors'];
 		}
 
 		if ( $remove_assets && $assets_count > 0 ) {
 			\WP_CLI::log( 'Removing Bricks theme assets from S3...' );
-			$result         = $this->get_theme_assets_sync_service()->removeAllFromS3();
+			$result         = $this->get_theme_assets_sync_service()->remove_all_from_s3();
 			$total_deleted += $result['deleted'];
 			$total_errors  += $result['errors'];
 		}

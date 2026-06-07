@@ -174,7 +174,7 @@ addEventListener("DOMContentLoaded", function () {
 			// Auto-save via AJAX
 			const formData = new URLSearchParams();
 			formData.append('action', 'nbs3_toggle_plugin_status');
-			formData.append('security_nonce', nbs3_ajax_object.save_general_nonce);
+			formData.append('security_nonce', nbs3_ajax_object.toggle_status_nonce);
 			formData.append('plugin_enabled', isEnabled ? '1' : '0');
 
 			fetch(nbs3_ajax_object.ajax_url, {

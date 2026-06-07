@@ -145,15 +145,29 @@ class BricksCssUrlRewriteObserver implements ObserverInterface {
 	private function rewrite_generated_css_urls( string $html, string $cdn_domain ): string {
 		// Match Bricks CSS URLs in link tags.
 		// Pattern matches href="...uploads/bricks/css/filename.css...".
-		$pattern = '/(href=["\'])([^"\']*\/uploads\/bricks\/css\/([a-zA-Z0-9._()-]+\.css))([^"\']*["\'])/i';
+		$pattern   = '/(href=["\'])([^"\']*\/uploads\/bricks\/css\/([a-zA-Z0-9._()-]+\.css))([^"\']*["\'])/i';
+		$site_host = wp_parse_url( home_url(), PHP_URL_HOST );
 
 		return preg_replace_callback(
 			$pattern,
-			function ( $matches ) use ( $cdn_domain ) {
+			function ( $matches ) use ( $cdn_domain, $site_host ) {
 				$prefix   = $matches[1]; // href=".
 				$full_url = $matches[2]; // Full URL to CSS file.
 				$filename = $matches[3]; // Just the filename.
 				$suffix   = $matches[4]; // Query string + closing quote.
+
+				/*
+				 * Anchor the rewrite to the current site's host. The path
+				 * regex contains a leading [^"\']* that would otherwise
+				 * match an attacker domain ending in /uploads/bricks/css/...,
+				 * causing the CDN rewrite to take over a third-party URL.
+				 * Allow same-site absolute URLs and protocol-relative or
+				 * site-relative URLs (no host); reject everything else.
+				 */
+				$matched_host = wp_parse_url( $full_url, PHP_URL_HOST );
+				if ( $matched_host && $site_host && strcasecmp( $matched_host, $site_host ) !== 0 ) {
+					return $matches[0];
+				}
 
 				// Check if this file is synced.
 				if ( ! $this->is_file_synced( $filename ) ) {
@@ -181,16 +195,26 @@ class BricksCssUrlRewriteObserver implements ObserverInterface {
 	private function rewrite_theme_asset_urls( string $html, string $cdn_domain ): string {
 		// Match theme asset URLs in href/src attributes.
 		// Pattern matches href/src="...themes/bricks/assets/...".
-		$pattern = '/((href|src)=["\'])([^"\']*\/themes\/bricks\/assets\/([^"\'?#]+))([^"\']*["\'])/i';
+		$pattern   = '/((href|src)=["\'])([^"\']*\/themes\/bricks\/assets\/([^"\'?#]+))([^"\']*["\'])/i';
+		$site_host = wp_parse_url( home_url(), PHP_URL_HOST );
 
 		return preg_replace_callback(
 			$pattern,
-			function ( $matches ) use ( $cdn_domain ) {
+			function ( $matches ) use ( $cdn_domain, $site_host ) {
 				$prefix        = $matches[1]; // Opening attribute with quote.
 				$attr          = $matches[2]; // Attribute name.
 				$full_url      = $matches[3]; // Full URL to asset.
 				$relative_path = $matches[4]; // Path relative to assets folder.
 				$suffix        = $matches[5]; // Query string and closing quote.
+
+				/*
+				 * Anchor to the site's host (see rewrite_generated_css_urls
+				 * for the full rationale).
+				 */
+				$matched_host = wp_parse_url( $full_url, PHP_URL_HOST );
+				if ( $matched_host && $site_host && strcasecmp( $matched_host, $site_host ) !== 0 ) {
+					return $matches[0];
+				}
 
 				// Check if this file is synced.
 				if ( ! $this->is_theme_asset_synced( $relative_path ) ) {

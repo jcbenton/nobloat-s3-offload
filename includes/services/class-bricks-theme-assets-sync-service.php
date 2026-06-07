@@ -273,8 +273,22 @@ class BricksThemeAssetsSyncService {
 				\RecursiveIteratorIterator::LEAVES_ONLY
 			);
 
+			$allowed_extensions = self::allowed_asset_extensions();
+
 			foreach ( $iterator as $fileinfo ) {
 				if ( ! $fileinfo->isFile() || ! $fileinfo->isReadable() ) {
+					continue;
+				}
+
+				/*
+				 * Reject symlinks. A symlink inside the Bricks assets dir
+				 * could point at /etc/, wp-config.php, or arbitrary files
+				 * outside the theme — we'd happily upload those to S3.
+				 * Symlinks under the theme dir are not used by stock Bricks
+				 * and any real-world legitimate case is rare enough that
+				 * skipping them is the safer default.
+				 */
+				if ( $fileinfo->isLink() ) {
 					continue;
 				}
 
@@ -292,6 +306,30 @@ class BricksThemeAssetsSyncService {
 					continue;
 				}
 
+				/*
+				 * Defence in depth: re-verify each file's resolved path
+				 * stays inside the assets dir. RecursiveDirectoryIterator
+				 * follows symlinks by default, and even with the isLink()
+				 * skip above, intermediate directory symlinks earlier in
+				 * the path could cause an asset path to escape the theme
+				 * directory tree.
+				 */
+				$file_real = realpath( $full_path );
+				if ( false === $file_real || 0 !== strpos( $file_real, $actual_path . DIRECTORY_SEPARATOR ) ) {
+					continue;
+				}
+
+				/*
+				 * Extension allowlist: only static web-asset file types
+				 * should be served via CDN. Refuse to upload .php, .env,
+				 * or anything we don't explicitly list — uploading server-
+				 * side or secret files would be an information disclosure.
+				 */
+				$ext = strtolower( $fileinfo->getExtension() );
+				if ( '' === $ext || ! in_array( $ext, $allowed_extensions, true ) ) {
+					continue;
+				}
+
 				$files[ $relative_path ] = $fileinfo->getMTime();
 			}
 		} catch ( \Exception $e ) {
@@ -301,6 +339,33 @@ class BricksThemeAssetsSyncService {
 		}
 
 		return $files;
+	}
+
+	/**
+	 * Allowed file extensions for theme-asset sync.
+	 *
+	 * Static web assets only — never source code, configuration, dotfiles,
+	 * archive formats, or executable formats.
+	 *
+	 * @return array<string> Lowercase extension list (no leading dot).
+	 */
+	private static function allowed_asset_extensions(): array {
+		return array(
+			// Stylesheets.
+			'css',
+			// JavaScript.
+			'js', 'mjs', 'map',
+			// Images.
+			'png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'avif', 'ico', 'bmp',
+			// Fonts.
+			'woff', 'woff2', 'ttf', 'otf', 'eot',
+			// Web manifests / data.
+			'json', 'xml', 'txt',
+			// Media.
+			'mp3', 'mp4', 'webm', 'ogg', 'm4a', 'wav',
+			// Documents (Bricks ships some).
+			'pdf',
+		);
 	}
 
 	/**

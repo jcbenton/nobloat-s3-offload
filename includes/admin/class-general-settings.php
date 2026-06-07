@@ -91,6 +91,7 @@ class GeneralSettings {
 			'nbs3_settings',
 			array(
 				'sanitize_callback' => array( $this, 'sanitize' ),
+				'autoload'          => false,
 			)
 		);
 
@@ -99,6 +100,7 @@ class GeneralSettings {
 			'nbs3_credentials',
 			array(
 				'sanitize_callback' => array( $this, 'sanitize_credentials' ),
+				'autoload'          => false,
 			)
 		);
 
@@ -756,8 +758,12 @@ class GeneralSettings {
 				continue;
 			}
 
-			if ( in_array( $field_name, array( 'endpoint', 'domain' ), true ) ) {
-				$sanitized[ $field_name ] = nbs3_normalize_url( $field_value );
+			if ( 'endpoint' === $field_name ) {
+				$sanitized[ $field_name ] = nbs3_validate_endpoint( (string) $field_value );
+			} elseif ( 'domain' === $field_name ) {
+				$sanitized[ $field_name ] = nbs3_normalize_url( (string) $field_value );
+			} elseif ( 'region' === $field_name ) {
+				$sanitized[ $field_name ] = nbs3_validate_region( (string) $field_value );
 			} elseif ( in_array( $field_name, array( 'key', 'secret' ), true ) ) {
 				$sanitized[ $field_name ] = sanitize_text_field( $field_value );
 			} elseif ( in_array( $field_name, $checkbox_fields, true ) ) {
@@ -972,6 +978,7 @@ class GeneralSettings {
 					'ajax_url'                         => admin_url( 'admin-ajax.php' ),
 					'nonce'                            => wp_create_nonce( 'nbs3_test_connection' ),
 					'save_general_nonce'               => wp_create_nonce( 'nbs3_save_general_settings' ),
+					'toggle_status_nonce'              => wp_create_nonce( 'nbs3_toggle_plugin_status' ),
 					'save_credentials_nonce'           => wp_create_nonce( 'nbs3_save_credentials' ),
 					'bricks_sync_nonce'                => wp_create_nonce( 'nbs3_bricks_sync' ),
 					'bricks_remove_nonce'              => wp_create_nonce( 'nbs3_bricks_remove' ),
@@ -1021,6 +1028,11 @@ class GeneralSettings {
 		if ( ! $this->verify_security_nonce( 'security_nonce', 'nbs3_test_connection' ) ) {
 			$response_data['message'] = __( 'Invalid nonce!', 'nobloat-s3-offload' );
 			wp_send_json_error( $response_data );
+		}
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			$response_data['message'] = __( 'You do not have permission to perform this action.', 'nobloat-s3-offload' );
+			wp_send_json_error( $response_data, 403 );
 		}
 
 		$bucket = nbs3_get_credential( 'bucket' );
@@ -1119,7 +1131,7 @@ class GeneralSettings {
 		}
 
 		$sanitized_settings = $this->sanitize( $settings );
-		update_option( 'nbs3_settings', $sanitized_settings );
+		update_option( 'nbs3_settings', $sanitized_settings, false );
 
 		wp_send_json_success(
 			array(
@@ -1155,7 +1167,7 @@ class GeneralSettings {
 		// phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce verified above, data sanitized by $this->sanitize_credentials().
 		$credentials           = isset( $_POST['nbs3_credentials'] ) ? wp_unslash( $_POST['nbs3_credentials'] ) : array();
 		$sanitized_credentials = $this->sanitize_credentials( $credentials );
-		update_option( 'nbs3_credentials', $sanitized_credentials );
+		update_option( 'nbs3_credentials', $sanitized_credentials, false );
 
 		wp_send_json_success(
 			array(
@@ -1711,7 +1723,7 @@ class GeneralSettings {
 	 * @return void
 	 */
 	public function toggle_plugin_status_ajax() {
-		if ( ! $this->verify_security_nonce( 'security_nonce', 'nbs3_save_general_settings' ) ) {
+		if ( ! $this->verify_security_nonce( 'security_nonce', 'nbs3_toggle_plugin_status' ) ) {
 			wp_send_json_error(
 				array(
 					'message' => __( 'Invalid security token!', 'nobloat-s3-offload' ),
@@ -1733,7 +1745,7 @@ class GeneralSettings {
 		// Get current settings and update only the plugin_enabled value.
 		$settings                   = get_option( 'nbs3_settings', array() );
 		$settings['plugin_enabled'] = $plugin_enabled;
-		update_option( 'nbs3_settings', $settings );
+		update_option( 'nbs3_settings', $settings, false );
 
 		wp_send_json_success(
 			array(

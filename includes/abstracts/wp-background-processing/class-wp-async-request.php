@@ -52,8 +52,16 @@ abstract class WP_Async_Request {
 	public function __construct() {
 		$this->identifier = $this->prefix . '_' . $this->action;
 
+		/*
+		 * Background processing must only be triggerable by an authenticated
+		 * request. The upstream WP_Background_Processing library historically
+		 * also registered wp_ajax_nopriv_*, which has been the root cause of
+		 * several CVEs (e.g. WP All Import, WC PDF Invoices) where any visitor
+		 * with a leaked/cached nonce could re-dispatch the queue. We register
+		 * only the authenticated handler, and maybe_handle() additionally
+		 * gates on is_user_logged_in().
+		 */
 		add_action( 'wp_ajax_' . $this->identifier, array( $this, 'maybe_handle' ) );
-		add_action( 'wp_ajax_nopriv_' . $this->identifier, array( $this, 'maybe_handle' ) );
 	}
 
 	/**
@@ -166,6 +174,16 @@ abstract class WP_Async_Request {
 		session_write_close();
 
 		check_ajax_referer( $this->identifier, 'nonce' );
+
+		/*
+		 * Defence in depth: the wp_ajax_nopriv_* registration was removed in
+		 * the constructor, so this branch should normally never fire from an
+		 * unauthenticated request. We re-check is_user_logged_in() here in
+		 * case a future change re-introduces the nopriv hook.
+		 */
+		if ( ! is_user_logged_in() ) {
+			wp_die( -1, 403 );
+		}
 
 		$this->handle();
 

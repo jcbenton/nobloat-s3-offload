@@ -120,12 +120,37 @@ class CloudAttachmentUploader {
 			return true;
 		}
 
-		if ( $this->upload_to_cloud( $attachment_id ) ) {
-			$this->update_attachment_metadata( $attachment_id );
-			return true;
+		/*
+		 * Acquire a per-attachment lock so two concurrent triggers (e.g.
+		 * `wp_generate_attachment_metadata` priority 99 and a manual
+		 * "Offload Now" AJAX click) cannot both pass the is_offloaded()
+		 * check, both call upload_to_cloud(), and both PUT divergent
+		 * S3 keys — leaving one set orphaned on S3 and producing
+		 * inconsistent post meta. wp_cache_add() is atomic check-and-set
+		 * on persistent object caches (Redis/Memcached); when no
+		 * persistent cache is available we fall back to add_post_meta()
+		 * which is atomic on the meta_id unique key.
+		 */
+		$lock_key = 'nbs3_upload_lock_' . $attachment_id;
+		if ( ! wp_cache_add( $lock_key, time(), 'nbs3', 5 * MINUTE_IN_SECONDS ) ) {
+			return false;
 		}
 
-		return false;
+		try {
+			// Re-check inside the lock.
+			if ( $this->is_offloaded( $attachment_id ) ) {
+				return true;
+			}
+
+			if ( $this->upload_to_cloud( $attachment_id ) ) {
+				$this->update_attachment_metadata( $attachment_id );
+				return true;
+			}
+
+			return false;
+		} finally {
+			wp_cache_delete( $lock_key, 'nbs3' );
+		}
 	}
 
 	/**
@@ -155,7 +180,7 @@ class CloudAttachmentUploader {
 
 		if ( $metadata ) {
 			$file          = get_attached_file( $attachment_id );
-			$subdir        = $this->get_attachment_subdir( $attachment_id );
+			$subdir        = $this->get_attachment_subdir( $attachment_id, true );
 			$upload_result = $this->s3_provider->upload_file( $file, $subdir . wp_basename( $file ) );
 
 			if ( ! $upload_result ) {
@@ -213,8 +238,8 @@ class CloudAttachmentUploader {
 			return false;
 		}
 
-		// Get the subdirectory for cloud storage.
-		$subdir = $this->get_attachment_subdir( $attachment_id );
+		// Get the subdirectory for cloud storage (upload-time path: persists object version).
+		$subdir = $this->get_attachment_subdir( $attachment_id, true );
 
 		// Get old and new sizes.
 		$old_sizes = isset( $old_metadata['sizes'] ) && is_array( $old_metadata['sizes'] ) ? $old_metadata['sizes'] : array();
@@ -421,7 +446,7 @@ class CloudAttachmentUploader {
 		}
 
 		$file          = get_attached_file( $attachment_id );
-		$subdir        = $this->get_attachment_subdir( $attachment_id );
+		$subdir        = $this->get_attachment_subdir( $attachment_id, true );
 		$s3_key        = $subdir . wp_basename( $file );
 		$upload_result = $this->s3_provider->upload_file( $file, $s3_key );
 
@@ -498,17 +523,28 @@ class CloudAttachmentUploader {
 
 			foreach ( $root_source_files as $source_file ) {
 				$source_path = $file_dir . $source_file;
-				if ( file_exists( $source_path ) ) {
-					$upload_result = $this->s3_provider->upload_file( $source_path, $subdir . $source_file );
-					if ( ! $upload_result ) {
-						$s3_error  = $this->s3_provider->get_last_error();
-						$error_msg = "Failed to upload source file '{$source_file}' to cloud storage.";
-						if ( $s3_error ) {
-							$error_msg .= ' S3 Error: ' . $s3_error;
-						}
-						$this->log_error( $attachment_id, $error_msg );
-						return false;
+				if ( ! file_exists( $source_path ) ) {
+					/*
+					 * Hard-fail when a metadata-declared source variant is
+					 * missing on disk. Silently skipping here used to leave
+					 * `nbs3_offloaded=true` on an attachment whose .webp
+					 * (or other variant) was never PUT to S3 — and if the
+					 * retention policy was Full Cloud Migration, the local
+					 * copy was then deleted, producing a permanent 404 on
+					 * any front-end request that selected that variant.
+					 */
+					$this->log_error( $attachment_id, "Source file '{$source_file}' declared in metadata but missing on disk; refusing to mark attachment offloaded." );
+					return false;
+				}
+				$upload_result = $this->s3_provider->upload_file( $source_path, $subdir . $source_file );
+				if ( ! $upload_result ) {
+					$s3_error  = $this->s3_provider->get_last_error();
+					$error_msg = "Failed to upload source file '{$source_file}' to cloud storage.";
+					if ( $s3_error ) {
+						$error_msg .= ' S3 Error: ' . $s3_error;
 					}
+					$this->log_error( $attachment_id, $error_msg );
+					return false;
 				}
 			}
 		}
@@ -610,6 +646,15 @@ class CloudAttachmentUploader {
 			error_log( "NBS3: Original file not found for deletion: $original_file" );
 			return false;
 		}
+
+		/*
+		 * Mark retention as in-progress before unlinking any files. If the
+		 * loop is interrupted halfway (PHP fatal, request timeout, FS perm
+		 * failure), the post meta still records that retention has started
+		 * — preventing the front-end from falling back to local URLs and
+		 * 404ing on the partially-deleted thumbnails.
+		 */
+		update_post_meta( $attachment_id, 'nbs3_retention_policy_started', $delete_local_rule );
 
 		$metadata = wp_get_attachment_metadata( $attachment_id );
 		$file_dir = trailingslashit( dirname( $original_file ) );

@@ -9,7 +9,7 @@
  * Plugin Name:       Nobloat S3 Offload
  * Plugin URI:        https://github.com/mailborder/nobloat-s3-offload
  * Description:       Lightweight S3 media offloader for WordPress. Offload media to any S3-compatible storage.
- * Version:           1.0.9
+ * Version:           1.1.0
  * Requires at least: 6.2
  * Requires PHP:      8.1
  * Author:            Jerry Benton
@@ -104,7 +104,45 @@ if ( ! class_exists( 'NBS3' ) ) {
 			 * init but after WP has finalised its locale, which is the conventional
 			 * place for plugin bootstrap.
 			 */
+			add_action( 'plugins_loaded', array( $this, 'maybe_run_upgrades' ), 4 );
 			add_action( 'plugins_loaded', array( $this, 'setup_hooks' ), 5 );
+		}
+
+		/**
+		 * Run one-shot upgrade migrations when the installed version changes.
+		 *
+		 * Plugin upgrades do not fire register_activation_hook, so any
+		 * data-shape changes that need to apply to existing installs must run
+		 * on plugins_loaded instead. The current options-row version is stored
+		 * in nbs3_installed_version; when it differs from NBS3_VERSION, we
+		 * dispatch the migration set then update the marker.
+		 *
+		 * @return void
+		 */
+		public function maybe_run_upgrades() {
+			$installed = get_option( 'nbs3_installed_version', '' );
+			if ( $installed === NBS3_VERSION ) {
+				return;
+			}
+
+			/*
+			 * Disable autoload on credentials and settings so the AWS secret
+			 * isn't pulled into memory by every wp_load_alloptions() call.
+			 * Idempotent: safe to run repeatedly.
+			 */
+			if ( function_exists( 'wp_set_option_autoload' ) ) {
+				wp_set_option_autoload( 'nbs3_credentials', false );
+				wp_set_option_autoload( 'nbs3_settings', false );
+			} else {
+				global $wpdb;
+				// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+				$wpdb->update( $wpdb->options, array( 'autoload' => 'no' ), array( 'option_name' => 'nbs3_credentials' ) );
+				$wpdb->update( $wpdb->options, array( 'autoload' => 'no' ), array( 'option_name' => 'nbs3_settings' ) );
+				// phpcs:enable
+				wp_cache_delete( 'alloptions', 'options' );
+			}
+
+			update_option( 'nbs3_installed_version', NBS3_VERSION, false );
 		}
 
 		/**
@@ -404,6 +442,26 @@ if ( ! class_exists( 'NBS3' ) ) {
 		public function plugin_activated() {
 			if ( null === get_option( 'nbs3_first_activated_version', null ) ) {
 				update_option( 'nbs3_first_activated_version', NBS3_VERSION, true );
+			}
+
+			/*
+			 * Disable autoload on the credentials and settings options. Both can
+			 * contain the AWS secret access key; allowing them to be autoloaded
+			 * means every plugin or theme that calls wp_load_alloptions() reads
+			 * the secret into memory on every request. New options are created
+			 * with autoload=no via register_setting; this catches rows created
+			 * by older releases.
+			 */
+			if ( function_exists( 'wp_set_option_autoload' ) ) {
+				wp_set_option_autoload( 'nbs3_credentials', false );
+				wp_set_option_autoload( 'nbs3_settings', false );
+			} else {
+				global $wpdb;
+				// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+				$wpdb->update( $wpdb->options, array( 'autoload' => 'no' ), array( 'option_name' => 'nbs3_credentials' ) );
+				$wpdb->update( $wpdb->options, array( 'autoload' => 'no' ), array( 'option_name' => 'nbs3_settings' ) );
+				// phpcs:enable
+				wp_cache_delete( 'alloptions', 'options' );
 			}
 		}
 

@@ -51,6 +51,115 @@ if ( ! function_exists( 'nbs3_normalize_url' ) ) {
 	}
 }
 
+if ( ! function_exists( 'nbs3_is_safe_endpoint_ip' ) ) {
+	/**
+	 * Check whether an IP is safe to use as an S3 endpoint target.
+	 *
+	 * Blocks link-local (cloud metadata IMDS at 169.254.169.254), loopback,
+	 * multicast, and other reserved ranges via FILTER_FLAG_NO_RES_RANGE.
+	 * RFC1918 private ranges (10/8, 172.16/12, 192.168/16) are still allowed
+	 * so legitimate MinIO deployments on private networks continue to work.
+	 *
+	 * @param string $ip The IPv4 or IPv6 address to check.
+	 * @return bool True if the IP is acceptable as an outbound destination.
+	 */
+	function nbs3_is_safe_endpoint_ip( string $ip ): bool {
+		return false !== filter_var( $ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_RES_RANGE );
+	}
+}
+
+if ( ! function_exists( 'nbs3_validate_endpoint' ) ) {
+	/**
+	 * Validate an S3 endpoint URL for SSRF safety.
+	 *
+	 * Rejects URLs whose host resolves to a reserved IP range (loopback,
+	 * link-local IMDS, multicast, etc). RFC1918 private ranges are accepted
+	 * so MinIO and similar self-hosted S3-compatible services keep working.
+	 * If DNS resolution fails the endpoint is rejected — an unreachable
+	 * endpoint is also a sign of a misconfiguration or DNS rebinding setup.
+	 *
+	 * @param string $url The endpoint URL.
+	 * @return string The normalized URL on success, empty string on rejection.
+	 */
+	function nbs3_validate_endpoint( string $url ): string {
+		$url = nbs3_normalize_url( $url );
+		if ( '' === $url ) {
+			return '';
+		}
+
+		$parsed = wp_parse_url( $url );
+		if ( empty( $parsed['host'] ) || empty( $parsed['scheme'] ) ) {
+			return '';
+		}
+
+		$scheme = strtolower( $parsed['scheme'] );
+		if ( 'http' !== $scheme && 'https' !== $scheme ) {
+			return '';
+		}
+
+		$host = $parsed['host'];
+		if ( '[' === substr( $host, 0, 1 ) && ']' === substr( $host, -1 ) ) {
+			$host = substr( $host, 1, -1 );
+		}
+
+		$ips = array();
+		if ( filter_var( $host, FILTER_VALIDATE_IP ) ) {
+			$ips[] = $host;
+		} else {
+			$a_records = @gethostbynamel( $host ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+			if ( is_array( $a_records ) ) {
+				$ips = array_merge( $ips, $a_records );
+			}
+			if ( function_exists( 'dns_get_record' ) ) {
+				$aaaa = @dns_get_record( $host, DNS_AAAA ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+				if ( is_array( $aaaa ) ) {
+					foreach ( $aaaa as $rec ) {
+						if ( ! empty( $rec['ipv6'] ) ) {
+							$ips[] = $rec['ipv6'];
+						}
+					}
+				}
+			}
+		}
+
+		if ( empty( $ips ) ) {
+			return '';
+		}
+
+		foreach ( $ips as $ip ) {
+			if ( ! nbs3_is_safe_endpoint_ip( $ip ) ) {
+				return '';
+			}
+		}
+
+		return $url;
+	}
+}
+
+if ( ! function_exists( 'nbs3_validate_region' ) ) {
+	/**
+	 * Validate an S3 region string.
+	 *
+	 * Region values are concatenated into URLs like
+	 * `https://s3.{region}.amazonaws.com` and into request signatures, so they
+	 * must be tightly constrained to alphanumerics and dashes. Anything else
+	 * could be used to inject hostnames or break URL parsing.
+	 *
+	 * @param string $region The region string.
+	 * @return string The normalized lowercase region or empty string if invalid.
+	 */
+	function nbs3_validate_region( string $region ): string {
+		$region = trim( $region );
+		if ( '' === $region ) {
+			return '';
+		}
+		if ( ! preg_match( '/^[a-z][a-z0-9-]{0,62}$/i', $region ) ) {
+			return '';
+		}
+		return strtolower( $region );
+	}
+}
+
 if ( ! function_exists( 'nbs3_get_public_url' ) ) {
 	/**
 	 * Helper function to get the public URL for an attachment.
@@ -459,7 +568,7 @@ if ( ! function_exists( 'nbs3_save_credentials' ) ) {
 	 * @return bool True on success, false on failure.
 	 */
 	function nbs3_save_credentials( array $credentials ): bool {
-		return update_option( 'nbs3_credentials', $credentials );
+		return update_option( 'nbs3_credentials', $credentials, false );
 	}
 }
 
@@ -499,7 +608,7 @@ if ( ! function_exists( 'nbs3_update_setting' ) ) {
 	function nbs3_update_setting( string $key, $value ): bool {
 		$settings         = get_option( 'nbs3_settings', array() );
 		$settings[ $key ] = $value;
-		return update_option( 'nbs3_settings', $settings );
+		return update_option( 'nbs3_settings', $settings, false );
 	}
 }
 

@@ -5,7 +5,7 @@ Tags: s3, media, offload, cdn, aws
 Requires at least: 6.2
 Tested up to: 6.9
 Requires PHP: 8.1
-Stable tag: 1.0.9
+Stable tag: 1.1.0
 License: GPLv3 or later
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -118,6 +118,30 @@ If media cannot be uploaded to S3, the local file is preserved and WordPress wil
 
 == Changelog ==
 
+= 1.1.0 =
+* Security: Validate the configured S3 endpoint at save and at client-build time. Rejects URLs whose host resolves to a reserved IP range (cloud-metadata IMDS at 169.254.169.254, loopback, link-local, multicast, etc). RFC1918 private ranges are still accepted so MinIO and similar self-hosted services keep working.
+* Security: Validate region strings to alphanumerics and dashes only — region values are concatenated into URLs and request signatures, so they cannot contain hostname-injection characters.
+* Security: Disable autoload on `nbs3_credentials` and `nbs3_settings`. Existing installs are migrated automatically on upgrade. Prior behaviour pulled the AWS secret access key into memory on every request that called `wp_load_alloptions()`.
+* Security: `check_connection_ajax` now requires `manage_options` (was nonce-only). Aligns with every other AJAX handler in the same class.
+* Security: Per-attachment AJAX handlers (offload/remove/invalidate single) now require `edit_post` for the specific attachment (was global `upload_files`, allowing one Author to act on another Author's media).
+* Security: CSV formula injection protection — exported error CSVs now prefix any cell starting with `=`, `+`, `-`, `@`, tab, or carriage return with a single quote. Prevents an attacker who can edit attachment titles from running formulas in the admin's spreadsheet client.
+* Security: Removed `wp_ajax_nopriv_*` registration from the vendored WP_Background_Process library — the historical CVE class for this library was unauthenticated background-task triggering. `is_user_logged_in()` is now also re-checked inside `maybe_handle()`.
+* Security: WP-CLI `wp nbs3 revert` now realpath-validates the local destination against the uploads basedir. Refuses to write outside the uploads tree (the path is reconstructed from `_wp_attached_file` post meta which an admin or a compromised lower-privileged role can mutate).
+* Security: `wp nbs3 revert` only deletes from S3 when EVERY local download succeeded. A single failed thumbnail no longer leaves the site with neither the local nor the cloud copy.
+* Security: Bricks CSS / theme-asset URL rewrites are now anchored to the site's host. Previously the regex `[^"\']*` prefix could match an attacker-controlled domain ending in `/uploads/bricks/css/...`, turning the rewrite into a same-origin URL takeover.
+* Security: Bricks theme-assets sync now rejects symlinks and applies an extension allowlist (CSS/JS/images/fonts/manifests/media/pdf only). Prevents `.env`, `.php`, dotfiles, and arbitrary symlinked targets from being uploaded to S3.
+* Security: Raw S3 SDK exception messages are no longer returned to the admin UI. Connection-test, single-attachment AJAX, sync-all, and remove-all paths log full details to `error_log()` and return generic localised messages to the client.
+* Bug fix: WP-CLI `wp nbs3 sync-bricks --remove` was silently broken — the CLI command called `removeAllFromS3()` but the underlying services define `remove_all_from_s3()`. Both destructive flag handlers were dead code.
+* Bug fix: Object-version generation no longer writes post meta from inside read-path filters (`wp_calculate_image_srcset_meta`, `image_downsize`, `wp_get_attachment_url`, `wp_calculate_image_srcset`). Two concurrent visitors could previously race the meta write and end up referencing different S3 keys; only the winner's URL pointed at an actual S3 object. Versions are now persisted at upload time only.
+* Bug fix: Missing source files (Modern Image Formats `.webp` etc) declared in metadata but absent on disk are now a hard upload failure rather than a silent skip. Previously this could leave an attachment marked "offloaded" while the variant was never PUT, then retention=2 would delete the local copy and produce a permanent 404.
+* Bug fix: `S3Provider::get_domain()` no longer falls back to the raw bucket URL when no CDN is configured. Front-end URL-rewrite observers now correctly preserve the local URL in that state. Previously the bucket name leaked into every page on the site.
+* Bug fix: Per-attachment lock added to `upload_attachment()` to prevent two concurrent triggers from both passing the `is_offloaded()` check, both PUTting to S3 with divergent timestamps, and orphaning S3 objects.
+* Bug fix: `force_unlock_process()` and `cleanup_orphaned_queue()` now honour an in-flight cancel signal. The 15-minute stalled-process recovery cron used to wipe `nbs3_bulk_offload_cancelled` and re-dispatch, silently undoing a user's cancel.
+* Bug fix: Retention sentinel meta (`nbs3_retention_policy_started`) is now written before any local-file deletion begins, so partial-failure (PHP fatal/timeout/perm error mid-loop) leaves recoverable state.
+* Bug fix: Post-content image tag rewriting now uses `WP_HTML_Tag_Processor` (WP 6.2+) instead of regex+`str_replace`. Previously the str_replace could mangle alt text or data-* attributes when the attachment URL substring also appeared there.
+* Hardening: Distinct nonces for `save_general_settings` vs. `toggle_plugin_status` (the toggle endpoint reused the settings-save nonce action).
+* Hardening: `nbs3_get_admin_page_url()` and `nbs3_generate_menu_item()` in the navmenu template are now wrapped in `function_exists` guards.
+
 = 1.0.9 =
 * Fixed: WP 6.7+ "Translation loading was triggered too early" notice. Plugin bootstrap deferred from file-load to the `plugins_loaded` action so class instantiation and observer registration happen after WordPress has reached the safe translation-loading window. Activation/deactivation hook registration remains at file-load (required for the activation lifecycle).
 
@@ -156,6 +180,9 @@ If media cannot be uploaded to S3, the local file is preserved and WordPress wil
 * wp-config.php credential support
 
 == Upgrade Notice ==
+
+= 1.1.0 =
+Security and correctness release. Closes 11 HIGH and 5 MED-severity issues found by full forensic audit, including SSRF protection on the configured S3 endpoint, AWS-secret autoload removal, CSV formula injection, vendored WP_Background_Process nopriv removal, WP-CLI revert path containment, Bricks URL-rewrite host anchoring, theme-asset symlink/extension allowlist, missing-source hard fail, retention-deletion safety, and concurrency-race fixes for object versioning and per-attachment uploads. Recommended for all users.
 
 = 1.0.9 =
 Resolves the "_load_textdomain_just_in_time was called incorrectly" notice on WordPress 6.7+. No functional changes.
