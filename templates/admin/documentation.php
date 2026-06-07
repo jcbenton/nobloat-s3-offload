@@ -433,7 +433,6 @@ wp cron event list | grep nbs3</code></pre>
 				"s3:PutObject",
 				"s3:GetObject",
 				"s3:DeleteObject",
-				"s3:HeadObject",
 				"s3:ListBucket"
 			],
 			"Resource": [

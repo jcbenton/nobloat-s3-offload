@@ -2,7 +2,7 @@
 
 Lightweight S3 media offloader for WordPress. Offload media to any S3-compatible storage with CDN support, Bricks Builder integration, and full WP-CLI commands.
 
-**Version:** 1.1.1
+**Version:** 1.1.2
 
 ## Features
 
@@ -179,6 +179,10 @@ GPLv3 or later
 ## Changelog
 
 See [readme.txt](readme.txt) for full changelog.
+
+### 1.1.2
+- Docs: Fixed the wp-config.php constant names in the in-plugin AWS Setup Guide (`NBS3_KEY` / `NBS3_SECRET` / `NBS3_DOMAIN`, not the previously-listed `NBS3_ACCESS_KEY_ID` / `NBS3_SECRET_ACCESS_KEY` / `NBS3_CDN_DOMAIN`).
+- Docs: Removed the invalid `s3:HeadObject` action from the IAM policy examples in the AWS Setup Guide and Documentation tabs.
 
 ### 1.1.1
 - Security: Endpoint SSRF protection is now enforced at connection time. The validated S3 endpoint host is pinned to the IP(s) verified during validation (via cURL `CURLOPT_RESOLVE`), so the AWS SDK cannot re-resolve DNS to a reserved address (cloud IMDS, loopback, link-local) after validation — closing the DNS-rebinding window.

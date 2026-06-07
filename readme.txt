@@ -5,7 +5,7 @@ Tags: s3, media, offload, cdn, aws
 Requires at least: 6.2
 Tested up to: 7.0
 Requires PHP: 8.1
-Stable tag: 1.1.1
+Stable tag: 1.1.2
 License: GPLv3 or later
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -118,6 +118,10 @@ If media cannot be uploaded to S3, the local file is preserved and WordPress wil
 
 == Changelog ==
 
+= 1.1.2 =
+* Docs: Corrected the wp-config.php constant names in the AWS Setup Guide tab. It previously listed `NBS3_ACCESS_KEY_ID`, `NBS3_SECRET_ACCESS_KEY`, and `NBS3_CDN_DOMAIN`, none of which the plugin reads — the correct constants are `NBS3_KEY`, `NBS3_SECRET`, and `NBS3_DOMAIN`. Following the old guide produced silently-empty credentials.
+* Docs: Removed the invalid `s3:HeadObject` action from the IAM policy examples in both the AWS Setup Guide and Documentation tabs. HeadObject is authorized by `s3:GetObject`; `s3:HeadObject` is not a real IAM action.
+
 = 1.1.1 =
 * Security: SSRF protection on the configured S3 endpoint is now enforced at connection time, not just at validation time. The endpoint host is resolved during validation and the connection is pinned to those validated IP(s) via cURL `CURLOPT_RESOLVE`, so the AWS SDK cannot re-resolve DNS to a reserved address (cloud-metadata IMDS, loopback, link-local) after validation passes. This closes the DNS-rebinding / TOCTOU window left open in 1.1.0. (Pinning requires the cURL HTTP handler; without it the point-in-time validation still applies.)
 * Security: Invalid S3 region strings are now rejected at client-build time and surfaced as an error instead of being silently coerced to `us-east-1`, which previously masked misconfiguration as opaque connection failures.
@@ -188,6 +192,9 @@ If media cannot be uploaded to S3, the local file is preserved and WordPress wil
 * wp-config.php credential support
 
 == Upgrade Notice ==
+
+= 1.1.2 =
+Documentation fixes only. Corrects the wp-config.php credential constant names shown in the AWS Setup Guide (use NBS3_KEY / NBS3_SECRET / NBS3_DOMAIN) and removes the invalid s3:HeadObject action from the IAM policy examples. No code changes.
 
 = 1.1.1 =
 Security follow-up to 1.1.0. Enforces S3 endpoint SSRF protection at connection time (closes the DNS-rebinding window), rejects invalid regions, stops leaking raw SDK error text to the admin UI, adds a capability check to background-process dispatch, and preserves offload metadata on partial S3-delete failure. Recommended for all users on 1.1.0.

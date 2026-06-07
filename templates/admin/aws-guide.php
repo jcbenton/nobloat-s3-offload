@@ -79,7 +79,6 @@ if ( ! current_user_can( 'manage_options' ) ) {
 				"s3:PutObject",
 				"s3:GetObject",
 				"s3:DeleteObject",
-				"s3:HeadObject",
 				"s3:ListBucket"
 			],
 			"Resource": [
@@ -99,8 +98,8 @@ if ( ! current_user_can( 'manage_options' ) ) {
 					<h3><?php esc_html_e( 'Step 5: Store Credentials Securely (Recommended)', 'nobloat-s3-offload' ); ?></h3>
 					<p><?php esc_html_e( 'For better security, define your credentials in wp-config.php instead of the database:', 'nobloat-s3-offload' ); ?></p>
 					<pre><code>// AWS S3 Credentials
-define( 'NBS3_ACCESS_KEY_ID', 'your-access-key-id' );
-define( 'NBS3_SECRET_ACCESS_KEY', 'your-secret-access-key' );
+define( 'NBS3_KEY', 'your-access-key-id' );
+define( 'NBS3_SECRET', 'your-secret-access-key' );
 define( 'NBS3_BUCKET', 'your-bucket-name' );
 define( 'NBS3_REGION', 'us-east-1' );
 
@@ -108,7 +107,7 @@ define( 'NBS3_REGION', 'us-east-1' );
 // define( 'NBS3_ENDPOINT', 'https://s3.example.com' );
 
 // Optional: CloudFront or custom CDN domain
-// define( 'NBS3_CDN_DOMAIN', 'https://d1234abcd.cloudfront.net' );</code></pre>
+// define( 'NBS3_DOMAIN', 'https://d1234abcd.cloudfront.net' );</code></pre>
 					<p><?php esc_html_e( 'When credentials are defined in wp-config.php, they take precedence over the plugin settings and cannot be changed from the admin interface.', 'nobloat-s3-offload' ); ?></p>
 				</div>
 			</div>
